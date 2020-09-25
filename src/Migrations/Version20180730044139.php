@@ -18,7 +18,7 @@ use Doctrine\DBAL\Schema\Schema;
 /**
  * Migrations fot the "delete user" feature.
  *
- * Adds constraints to the timesheet table, so all timesheet entries. will be deleted when a user is deleted.
+ * Adds constraints to the timesheet table, so all timesheet entries will be deleted when a user is deleted.
  */
 final class Version20180730044139 extends AbstractMigration
 {
@@ -30,21 +30,14 @@ final class Version20180730044139 extends AbstractMigration
     /**
      * @param Schema $schema
      * @throws \Doctrine\DBAL\DBALException
-     * @throws \Doctrine\DBAL\Migrations\AbortMigrationException
      */
     public function up(Schema $schema): void
     {
-        $platform = $this->getPlatform();
+        $timesheet = 'kimai2_timesheet';
+        $user = 'kimai2_users';
+        $activity = 'kimai2_activities';
 
-        if (!in_array($platform, ['sqlite', 'mysql'])) {
-            $this->abortIf(true, 'Unsupported database platform: ' . $platform);
-        }
-
-        $timesheet = $this->getTableName('timesheet');
-        $user = $this->getTableName('users');
-        $activity = $this->getTableName('activities');
-
-        if ($platform === 'sqlite') {
+        if ($this->isPlatformSqlite()) {
             $this->addSql('DROP INDEX IDX_4F60C6B181C06096');
             $this->addSql('DROP INDEX IDX_4F60C6B18D93D649');
             $this->addSql('CREATE TEMPORARY TABLE __temp__' . $timesheet . ' AS SELECT id, user, activity_id, start_time, end_time, duration, description, rate FROM ' . $timesheet);
@@ -63,20 +56,13 @@ final class Version20180730044139 extends AbstractMigration
     /**
      * @param Schema $schema
      * @throws \Doctrine\DBAL\DBALException
-     * @throws \Doctrine\DBAL\Migrations\AbortMigrationException
      */
     public function down(Schema $schema): void
     {
-        $platform = $this->getPlatform();
+        $timesheet = 'kimai2_timesheet';
+        $user = 'kimai2_users';
 
-        if (!in_array($platform, ['sqlite', 'mysql'])) {
-            $this->abortIf(true, 'Unsupported database platform: ' . $platform);
-        }
-
-        $timesheet = $this->getTableName('timesheet');
-        $user = $this->getTableName('users');
-
-        if ($platform === 'sqlite') {
+        if ($this->isPlatformSqlite()) {
             $this->addSql('DROP INDEX IDX_4F60C6B18D93D649');
             $this->addSql('DROP INDEX IDX_4F60C6B181C06096');
             $this->addSql('CREATE TEMPORARY TABLE __temp__' . $timesheet . ' AS SELECT id, user, activity_id, start_time, end_time, duration, description, rate FROM ' . $timesheet);

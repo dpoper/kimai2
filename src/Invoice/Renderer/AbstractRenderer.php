@@ -9,74 +9,61 @@
 
 namespace App\Invoice\Renderer;
 
-use App\Twig\DateExtensions;
-use App\Twig\Extensions;
-use Symfony\Component\Translation\TranslatorInterface;
+use App\Entity\InvoiceDocument;
+use App\Invoice\InvoiceFilename;
+use App\Invoice\InvoiceModel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
+/**
+ * @internal
+ */
 abstract class AbstractRenderer
 {
-    use RendererTrait;
+    /**
+     * @return string[]
+     */
+    abstract protected function getFileExtensions();
 
     /**
-     * @var DateExtensions
+     * @return string
      */
-    protected $dateExtension;
+    abstract protected function getContentType();
 
     /**
-     * @var Extensions
+     * @param InvoiceDocument $document
+     * @return bool
      */
-    protected $extension;
-
-    /**
-     * @var TranslatorInterface
-     */
-    protected $translator;
-
-    /**
-     * @param TranslatorInterface $translator
-     * @param DateExtensions $dateExtension
-     * @param Extensions $extensions
-     */
-    public function __construct(TranslatorInterface $translator, DateExtensions $dateExtension, Extensions $extensions)
+    public function supports(InvoiceDocument $document): bool
     {
-        $this->translator = $translator;
-        $this->dateExtension = $dateExtension;
-        $this->extension = $extensions;
+        foreach ($this->getFileExtensions() as $extension) {
+            if (stripos($document->getFilename(), $extension) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function buildFilename(InvoiceModel $model): string
+    {
+        return (string) new InvoiceFilename($model);
     }
 
     /**
-     * @param \DateTime $date
-     * @return mixed
+     * @param mixed $file
+     * @param string $filename
+     * @return BinaryFileResponse
      */
-    protected function getFormattedDateTime(\DateTime $date)
+    protected function getFileResponse($file, $filename)
     {
-        return $this->dateExtension->dateShort($date);
-    }
+        $response = new BinaryFileResponse($file);
+        $disposition = $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $filename);
 
-    /**
-     * @param $amount
-     * @return mixed
-     */
-    protected function getFormattedMoney($amount)
-    {
-        return $this->extension->money($amount);
-    }
+        $response->headers->set('Content-Type', $this->getContentType());
+        $response->headers->set('Content-Disposition', $disposition);
+        $response->deleteFileAfterSend(true);
 
-    /**
-     * @param \DateTime $date
-     * @return mixed
-     */
-    protected function getFormattedMonthName(\DateTime $date)
-    {
-        return $this->translator->trans($this->dateExtension->monthName($date));
-    }
-
-    /**
-     * @param $seconds
-     * @return mixed
-     */
-    protected function getFormattedDuration($seconds)
-    {
-        return $this->extension->duration($seconds);
+        return $response;
     }
 }

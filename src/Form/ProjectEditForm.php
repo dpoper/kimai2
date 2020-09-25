@@ -12,81 +12,85 @@ namespace App\Form;
 use App\Entity\Customer;
 use App\Entity\Project;
 use App\Form\Type\CustomerType;
-use App\Form\Type\YesNoType;
+use App\Form\Type\DateTimePickerType;
 use App\Repository\CustomerRepository;
+use App\Repository\Query\CustomerFormTypeQuery;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
-use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-/**
- * Defines the form used to edit Projects.
- */
 class ProjectEditForm extends AbstractType
 {
+    use EntityFormTrait;
+
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        /** @var Project $entry */
-        $entry = $options['data'];
-
         $customer = null;
-        $currency = false;
+        $id = null;
 
-        if ($entry->getId() !== null) {
-            $customer = $entry->getCustomer();
-            $currency = $customer->getCurrency();
+        if (isset($options['data'])) {
+            /** @var Project $entry */
+            $entry = $options['data'];
+            $id = $entry->getId();
+
+            if (null !== $entry->getCustomer()) {
+                $customer = $entry->getCustomer();
+                $options['currency'] = $customer->getCurrency();
+            }
+        }
+
+        $dateTimeOptions = [];
+        // primarily for API usage, where we cannot use a user/locale specific format
+        if (null !== $options['date_format']) {
+            $dateTimeOptions['format'] = $options['date_format'];
         }
 
         $builder
             ->add('name', TextType::class, [
                 'label' => 'label.name',
+                'attr' => [
+                    'autofocus' => 'autofocus'
+                ],
             ])
             ->add('comment', TextareaType::class, [
-                'label' => 'label.comment',
+                'label' => 'label.description',
                 'required' => false,
             ])
             ->add('orderNumber', TextType::class, [
-                'label' => 'label.order_number',
+                'label' => 'label.orderNumber',
                 'required' => false,
             ])
+            ->add('orderDate', DateTimePickerType::class, array_merge($dateTimeOptions, [
+                'label' => 'label.orderDate',
+                'required' => false,
+            ]))
+            ->add('start', DateTimePickerType::class, array_merge($dateTimeOptions, [
+                'label' => 'label.project_start',
+                'required' => false,
+            ]))
+            ->add('end', DateTimePickerType::class, array_merge($dateTimeOptions, [
+                'label' => 'label.project_end',
+                'required' => false,
+            ]))
             ->add('customer', CustomerType::class, [
-                'label' => 'label.customer',
-                'query_builder' => function (CustomerRepository $repo) use ($customer) {
-                    return $repo->builderForEntityType($customer);
-                },
-            ])
-            ->add('fixedRate', MoneyType::class, [
-                'label' => 'label.fixed_rate',
-                'required' => false,
-                'currency' => $currency,
-            ])
-            ->add('hourlyRate', MoneyType::class, [
-                'label' => 'label.hourly_rate',
-                'required' => false,
-                'currency' => $currency,
-            ])
-            ->add('budget', MoneyType::class, [
-                'label' => 'label.budget',
-                'required' => false,
-                'currency' => $currency,
-            ])
-            ->add('visible', YesNoType::class, [
-                'label' => 'label.visible',
-            ])
-        ;
+                'placeholder' => (null === $id && null === $customer) ? '' : false,
+                'query_builder' => function (CustomerRepository $repo) use ($builder, $customer) {
+                    $query = new CustomerFormTypeQuery($customer);
+                    $query->setUser($builder->getOption('user'));
 
-        if ($entry->getId() === null) {
-            $builder->add('create_more', CheckboxType::class, [
-                'label' => 'label.create_more',
-                'required' => false,
-                'mapped' => false,
+                    return $repo->getQueryBuilderForFormType($query);
+                },
             ]);
+
+        $this->addCommonFields($builder, $options);
+
+        if (null === $id && $options['create_more']) {
+            $this->addCreateMore($builder);
         }
     }
 
@@ -101,6 +105,12 @@ class ProjectEditForm extends AbstractType
             'csrf_field_name' => '_token',
             'csrf_token_id' => 'admin_project_edit',
             'currency' => Customer::DEFAULT_CURRENCY,
+            'date_format' => null,
+            'include_budget' => false,
+            'create_more' => false,
+            'attr' => [
+                'data-form-event' => 'kimai.projectUpdate'
+            ],
         ]);
     }
 }

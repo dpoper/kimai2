@@ -16,36 +16,27 @@ use App\Entity\Project;
  */
 class ActivityQuery extends ProjectQuery
 {
+    public const ACTIVITY_ORDER_ALLOWED = ['id', 'name', 'comment', 'customer', 'project', 'visible'];
+
     /**
-     * @var Project|int
+     * @var Project[]|int[]
      */
-    protected $project;
+    private $projects = [];
     /**
      * @var bool
      */
-    protected $orderGlobalsFirst = false;
+    private $globalsOnly = false;
     /**
      * @var bool
      */
-    protected $globalsOnly = false;
+    private $excludeGlobals = false;
 
-    /**
-     * @return bool
-     */
-    public function isOrderGlobalsFirst(): bool
+    public function __construct()
     {
-        return $this->orderGlobalsFirst;
-    }
-
-    /**
-     * @param bool $orderGlobalsFirst
-     * @return ActivityQuery
-     */
-    public function setOrderGlobalsFirst(bool $orderGlobalsFirst)
-    {
-        $this->orderGlobalsFirst = $orderGlobalsFirst;
-
-        return $this;
+        parent::__construct();
+        $this->setDefaults([
+            'orderBy' => 'name',
+        ]);
     }
 
     /**
@@ -53,36 +44,86 @@ class ActivityQuery extends ProjectQuery
      */
     public function isGlobalsOnly(): bool
     {
-        return $this->globalsOnly;
+        return (bool) $this->globalsOnly;
     }
 
     /**
      * @param bool $globalsOnly
-     * @return ActivityQuery
+     * @return self
      */
-    public function setGlobalsOnly(bool $globalsOnly)
+    public function setGlobalsOnly($globalsOnly): self
     {
-        $this->globalsOnly = $globalsOnly;
+        $this->globalsOnly = (bool) $globalsOnly;
+
+        return $this;
+    }
+
+    public function isExcludeGlobals(): bool
+    {
+        return (bool) $this->excludeGlobals;
+    }
+
+    public function setExcludeGlobals(bool $excludeGlobals): self
+    {
+        $this->excludeGlobals = (bool) $excludeGlobals;
 
         return $this;
     }
 
     /**
-     * @return Project|int
+     * @return Project|int|null
+     * @deprecated since 1.9 - use getProjects() instead - will be removed with 2.0
      */
     public function getProject()
     {
-        return $this->project;
+        if (\count($this->projects) > 0) {
+            return $this->projects[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param Project|int|null $project
+     * @return self
+     * @deprecated since 1.9 - use setProjects() or addProject() instead - will be removed with 2.0
+     */
+    public function setProject($project = null): self
+    {
+        if (null === $project) {
+            $this->projects = [];
+        } else {
+            $this->projects = [$project];
+        }
+
+        return $this;
     }
 
     /**
      * @param Project|int $project
-     * @return $this
+     * @return self
      */
-    public function setProject($project = null)
+    public function addProject($project): self
     {
-        $this->project = $project;
+        $this->projects[] = $project;
 
         return $this;
+    }
+
+    public function setProjects(array $projects): self
+    {
+        $this->projects = $projects;
+
+        return $this;
+    }
+
+    public function getProjects(): array
+    {
+        return $this->projects;
+    }
+
+    public function hasProjects(): bool
+    {
+        return !empty($this->projects);
     }
 }

@@ -10,15 +10,19 @@
 namespace App\Event;
 
 use KevinPapst\AdminLTEBundle\Event\SidebarMenuEvent;
-use Symfony\Component\EventDispatcher\Event;
+use KevinPapst\AdminLTEBundle\Model\MenuItemModel;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\EventDispatcher\Event;
 
 /**
  * The ConfigureMainMenuEvent is used for populating the main navigation.
  */
-class ConfigureMainMenuEvent extends Event
+final class ConfigureMainMenuEvent extends Event
 {
-    public const CONFIGURE = 'app.main_menu_configure';
+    /**
+     * @deprecated since 1.4, will be removed with 2.0
+     */
+    public const CONFIGURE = ConfigureMainMenuEvent::class;
 
     /**
      * @var Request
@@ -28,17 +32,27 @@ class ConfigureMainMenuEvent extends Event
      * @var SidebarMenuEvent
      */
     private $event;
+    /**
+     * @var MenuItemModel
+     */
+    private $admin;
+    /**
+     * @var MenuItemModel
+     */
+    private $system;
 
     /**
      * @param Request $request
      * @param SidebarMenuEvent $event
+     * @param MenuItemModel $admin
+     * @param MenuItemModel $system
      */
-    public function __construct(
-        Request $request,
-        SidebarMenuEvent $event
-    ) {
+    public function __construct(Request $request, SidebarMenuEvent $event, MenuItemModel $admin, MenuItemModel $system)
+    {
         $this->request = $request;
         $this->event = $event;
+        $this->admin = $admin;
+        $this->system = $system;
     }
 
     /**
@@ -55,5 +69,21 @@ class ConfigureMainMenuEvent extends Event
     public function getMenu()
     {
         return $this->event;
+    }
+
+    /**
+     * @return MenuItemModel
+     */
+    public function getAdminMenu()
+    {
+        return $this->admin;
+    }
+
+    /**
+     * @return MenuItemModel
+     */
+    public function getSystemMenu()
+    {
+        return $this->system;
     }
 }

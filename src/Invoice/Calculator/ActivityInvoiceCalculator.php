@@ -9,36 +9,31 @@
 
 namespace App\Invoice\Calculator;
 
-use App\Entity\Timesheet;
 use App\Invoice\CalculatorInterface;
+use App\Invoice\InvoiceItem;
+use App\Invoice\InvoiceItemInterface;
 
 /**
- * A calculator that sums up the timesheet records by activity.
+ * A calculator that sums up the invoice item records by activity.
  */
-class ActivityInvoiceCalculator extends AbstractMergedCalculator implements CalculatorInterface
+class ActivityInvoiceCalculator extends AbstractSumInvoiceCalculator implements CalculatorInterface
 {
-    /**
-     * @return Timesheet[]
-     */
-    public function getEntries()
+    protected function calculateSumIdentifier(InvoiceItemInterface $invoiceItem): string
     {
-        $entries = $this->model->getEntries();
-        if (empty($entries)) {
-            return [];
+        if (null === $invoiceItem->getActivity()) {
+            return '__NULL__';
         }
 
-        /** @var Timesheet[] $timesheets */
-        $timesheets = [];
+        return (string) $invoiceItem->getActivity()->getId();
+    }
 
-        foreach ($entries as $entry) {
-            if (!isset($timesheets[$entry->getActivity()->getId()])) {
-                $timesheets[$entry->getActivity()->getId()] = new Timesheet();
-            }
-            $timesheet = $timesheets[$entry->getActivity()->getId()];
-            $this->mergeTimesheets($timesheet, $entry);
+    protected function mergeSumInvoiceItem(InvoiceItem $invoiceItem, InvoiceItemInterface $entry)
+    {
+        if (null === $entry->getActivity()) {
+            return;
         }
 
-        return array_values($timesheets);
+        $invoiceItem->setDescription($entry->getActivity()->getName());
     }
 
     /**

@@ -9,17 +9,18 @@
 
 namespace App\EventSubscriber;
 
-use App\Event\ConfigureAdminMenuEvent;
 use App\Event\ConfigureMainMenuEvent;
+use App\Utils\MenuItemModel as KimaiMenuItemModel;
 use KevinPapst\AdminLTEBundle\Event\SidebarMenuEvent;
-use KevinPapst\AdminLTEBundle\Event\ThemeEvents;
+use KevinPapst\AdminLTEBundle\Model\MenuItemInterface;
 use KevinPapst\AdminLTEBundle\Model\MenuItemModel;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 /**
  * Class MenuBuilder configures the main navigation.
+ * @internal
  */
 class MenuBuilderSubscriber implements EventSubscriberInterface
 {
@@ -28,19 +29,14 @@ class MenuBuilderSubscriber implements EventSubscriberInterface
      */
     private $eventDispatcher;
     /**
-     * @var AuthorizationCheckerInterface
+     * @var TokenStorageInterface
      */
-    private $security;
+    private $tokenStorage;
 
-    /**
-     * MenuBuilderSubscriber constructor.
-     * @param EventDispatcherInterface $dispatcher
-     * @param AuthorizationCheckerInterface $security
-     */
-    public function __construct(EventDispatcherInterface $dispatcher, AuthorizationCheckerInterface $security)
+    public function __construct(EventDispatcherInterface $dispatcher, TokenStorageInterface $storage)
     {
         $this->eventDispatcher = $dispatcher;
-        $this->security = $security;
+        $this->tokenStorage = $storage;
     }
 
     /**
@@ -49,7 +45,7 @@ class MenuBuilderSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            ThemeEvents::THEME_SIDEBAR_SETUP_MENU => ['onSetupNavbar', 100],
+            SidebarMenuEvent::class => ['onSetupNavbar', 100],
         ];
     }
 
@@ -66,26 +62,30 @@ class MenuBuilderSubscriber implements EventSubscriberInterface
             new MenuItemModel('dashboard', 'menu.homepage', 'dashboard', [], 'fas fa-tachometer-alt')
         );
 
-        $this->eventDispatcher->dispatch(
-            ConfigureMainMenuEvent::CONFIGURE,
-            new ConfigureMainMenuEvent(
-                $request,
-                $event
-            )
+        $menuEvent = new ConfigureMainMenuEvent(
+            $request,
+            $event,
+            new MenuItemModel('admin', 'menu.admin', ''),
+            new MenuItemModel('system', 'menu.system', '')
         );
 
-        $admin = new MenuItemModel('admin', 'menu.admin', '', [], 'fas fa-wrench');
+        // error pages don't have a user and will fail when is_granted() is called
+        if (null !== $this->tokenStorage->getToken()) {
+            $this->eventDispatcher->dispatch($menuEvent);
+        }
 
-        $this->eventDispatcher->dispatch(
-            ConfigureAdminMenuEvent::CONFIGURE,
-            new ConfigureAdminMenuEvent(
-                $request,
-                $admin
-            )
-        );
+        if ($menuEvent->getAdminMenu()->hasChildren()) {
+            $event->addItem(new MenuItemModel('admin', 'menu.admin', ''));
+            foreach ($menuEvent->getAdminMenu()->getChildren() as $child) {
+                $event->addItem($child);
+            }
+        }
 
-        if ($admin->hasChildren()) {
-            $event->addItem($admin);
+        if ($menuEvent->getSystemMenu()->hasChildren()) {
+            $event->addItem(new MenuItemModel('system', 'menu.system', ''));
+            foreach ($menuEvent->getSystemMenu()->getChildren() as $child) {
+                $event->addItem($child);
+            }
         }
 
         $this->activateByRoute(
@@ -96,7 +96,7 @@ class MenuBuilderSubscriber implements EventSubscriberInterface
 
     /**
      * @param string $route
-     * @param MenuItemModel[] $items
+     * @param MenuItemInterface[] $items
      */
     protected function activateByRoute($route, $items)
     {
@@ -106,6 +106,13 @@ class MenuBuilderSubscriber implements EventSubscriberInterface
             } else {
                 if ($item->getRoute() == $route) {
                     $item->setIsActive(true);
+                    continue;
+                }
+                if ($item instanceof KimaiMenuItemModel) {
+                    if ($item->isChildRoute($route)) {
+                        $item->setIsActive(true);
+                        continue;
+                    }
                 }
             }
         }

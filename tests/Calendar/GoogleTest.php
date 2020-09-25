@@ -10,19 +10,19 @@
 namespace App\Tests\Calendar;
 
 use App\Calendar\Google;
-use App\Calendar\Source;
+use App\Calendar\GoogleSource;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @coversDefaultClass \App\Calendar\Google
+ * @covers \App\Calendar\Google
  */
 class GoogleTest extends TestCase
 {
     public function testConstruct()
     {
         $sources = [
-            (new Source())->setId('foo')->setColor('#ccc'),
-            (new Source())->setId('bar')->setUri('sdsdfsdfsdfsdffd'),
+            new GoogleSource('foo', '', '#ccc'),
+            new GoogleSource('bar', 'sdsdfsdfsdfsdffd'),
         ];
 
         $sut = new Google('qwertzuiop1234567890');

@@ -16,11 +16,14 @@ use App\Entity\Project;
 use App\Entity\Timesheet;
 use App\Entity\User;
 use App\Invoice\Calculator\ActivityInvoiceCalculator;
-use App\Model\InvoiceModel;
+use App\Invoice\InvoiceModel;
 use App\Repository\Query\InvoiceQuery;
+use App\Tests\Invoice\DebugFormatter;
 
 /**
  * @covers \App\Invoice\Calculator\ActivityInvoiceCalculator
+ * @covers \App\Invoice\Calculator\AbstractSumInvoiceCalculator
+ * @covers \App\Invoice\Calculator\AbstractMergedCalculator
  * @covers \App\Invoice\Calculator\AbstractCalculator
  */
 class ActivityInvoiceCalculatorTest extends AbstractCalculatorTest
@@ -36,14 +39,17 @@ class ActivityInvoiceCalculatorTest extends AbstractCalculatorTest
         $template = new InvoiceTemplate();
         $template->setVat(19);
 
-        $user = $this->getMockBuilder(User::class)->setMethods(['getId'])->disableOriginalConstructor()->getMock();
+        $user = $this->getMockBuilder(User::class)->onlyMethods(['getId'])->disableOriginalConstructor()->getMock();
         $user->method('getId')->willReturn(1);
 
-        $activity1 = $this->getMockBuilder(Activity::class)->setMethods(['getId'])->disableOriginalConstructor()->getMock();
+        $activity1 = $this->getMockBuilder(Activity::class)->onlyMethods(['getId'])->disableOriginalConstructor()->getMock();
         $activity1->method('getId')->willReturn(1);
 
-        $activity2 = $this->getMockBuilder(Activity::class)->setMethods(['getId'])->disableOriginalConstructor()->getMock();
+        $activity2 = $this->getMockBuilder(Activity::class)->onlyMethods(['getId'])->disableOriginalConstructor()->getMock();
         $activity2->method('getId')->willReturn(2);
+
+        $activity3 = $this->getMockBuilder(Activity::class)->onlyMethods(['getId'])->disableOriginalConstructor()->getMock();
+        $activity3->method('getId')->willReturn(3);
 
         $timesheet = new Timesheet();
         $timesheet
@@ -92,18 +98,46 @@ class ActivityInvoiceCalculatorTest extends AbstractCalculatorTest
             ->setDuration(400)
             ->setRate(84)
             ->setUser(new User())
+            ->setActivity($activity3)
+            ->setProject((new Project())->setName('bar'));
+
+        $timesheet6 = new Timesheet();
+        $timesheet6
+            ->setBegin(new \DateTime())
+            ->setEnd(new \DateTime())
+            ->setDuration(0)
+            ->setRate(0)
+            ->setUser(new User())
+            ->setProject((new Project())->setName('bar'));
+
+        $timesheet7 = new Timesheet();
+        $timesheet7
+            ->setBegin(new \DateTime())
+            ->setEnd(new \DateTime())
+            ->setDuration(0)
+            ->setRate(0)
+            ->setUser(new User())
             ->setActivity(new Activity())
             ->setProject((new Project())->setName('bar'));
 
-        $entries = [$timesheet, $timesheet2, $timesheet3, $timesheet4, $timesheet5];
+        $timesheet8 = new Timesheet();
+        $timesheet8
+            ->setBegin(new \DateTime())
+            ->setEnd(new \DateTime())
+            ->setDuration(0)
+            ->setRate(0)
+            ->setUser(new User())
+            ->setProject((new Project())->setName('bar'));
+
+        $entries = [$timesheet, $timesheet2, $timesheet3, $timesheet4, $timesheet5, $timesheet6, $timesheet7, $timesheet8];
 
         $query = new InvoiceQuery();
         $query->setActivity($activity1);
 
-        $model = new InvoiceModel();
+        $model = new InvoiceModel(new DebugFormatter());
         $model->setCustomer($customer);
         $model->setTemplate($template);
-        $model->setEntries($entries);
+        $model->addEntries($entries);
         $model->setQuery($query);
 
         $sut = new ActivityInvoiceCalculator();
@@ -112,10 +146,10 @@ class ActivityInvoiceCalculatorTest extends AbstractCalculatorTest
         $this->assertEquals('activity', $sut->getId());
         $this->assertEquals(3000.13, $sut->getTotal());
         $this->assertEquals(19, $sut->getVat());
-        $this->assertEquals('EUR', $sut->getCurrency());
+        $this->assertEquals('EUR', $model->getCurrency());
         $this->assertEquals(2521.12, $sut->getSubtotal());
         $this->assertEquals(6600, $sut->getTimeWorked());
-        $this->assertEquals(3, count($sut->getEntries()));
+        $this->assertEquals(5, \count($sut->getEntries()));
 
         $entries = $sut->getEntries();
         $this->assertEquals(404.38, $entries[0]->getRate());
@@ -123,18 +157,8 @@ class ActivityInvoiceCalculatorTest extends AbstractCalculatorTest
         $this->assertEquals(84, $entries[2]->getRate());
     }
 
-    public function testDescriptionByTimesheet()
-    {
-        $this->assertDescription(new ActivityInvoiceCalculator(), false, false);
-    }
-
     public function testDescriptionByActivity()
     {
         $this->assertDescription(new ActivityInvoiceCalculator(), false, true);
-    }
-
-    public function testDescriptionByProject()
-    {
-        $this->assertDescription(new ActivityInvoiceCalculator(), true, false);
     }
 }

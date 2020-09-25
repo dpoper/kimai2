@@ -1,101 +1,243 @@
-{% extends '@AdminLTE/layout/default-layout-avanzu.html.twig' %}
+{% extends '@AdminLTE/layout/default-layout.html.twig' %}
 
-{% block avanzu_page_content_before %}
-    <div class="pad no-print">
+{% block body_start %}
+    data-title="{{- get_title() -}}"
+{% endblock %}
+
+{% block after_body_start %}
+    {% embed 'embeds/modal.html.twig' %}
+        {% block modal_id %}remote_form_modal{% endblock %}
+        {% block modal_title %}{% endblock %}
+        {% block modal_body %}{% endblock %}
+        {% block modal_footer %}{% endblock %}
+    {% endembed %}
+{% endblock %}
+
+{% block page_content_before %}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::CONTENT_BEFORE')) %}
+    {{ event.content|raw }}
+    <div class="toolbar-pad no-print">
         {% block main_before %}{% endblock %}
     </div>
 {% endblock %}
 
-{% block avanzu_page_content_after %}
+{% block page_content_after %}
     {% block main_after %}{% endblock %}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::CONTENT_AFTER')) %}
+    {{ event.content|raw }}
 {% endblock %}
 
-{% block avanzu_page_content %}
+{% block page_content %}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::CONTENT_START')) %}
+    {{ event.content|raw }}
     {% block main %}{% endblock %}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::CONTENT_END')) %}
+    {{ event.content|raw }}
 {% endblock %}
 
-{% block avanzu_document_title %}
-    {% block title %}{{ 'browser.title'|trans }}{% endblock %}
+{% block title %}
+    {{- get_title() -}}
 {% endblock %}
 
-{% block avanzu_page_title %}
-    {% block page_title %}{% endblock %}
+{% block page_subtitle %}{% endblock %}
+
+{% block logo_mini %}
+    {% if not kimai_context.branding.mini is empty %}
+        {{ kimai_context.branding.mini|raw }}
+    {% else %}
+        <b>K</b>TT
+    {% endif %}
 {% endblock %}
 
-{% block avanzu_page_subtitle %}
-    {% block page_subtitle %}{% endblock %}
+{% block logo_large %}
+    {% if not kimai_context.branding.company is empty %}
+        {{ kimai_context.branding.company|raw }}
+    {% else %}
+        <b>Kimai</b> - Time Tracking
+    {% endif %}
 {% endblock %}
 
-{% block avanzu_logo_mini %}
-    <b>K</b>TT
+{% block footer %}
+    <!-- Page rendered on {{ 'now'|date_full }} -->
 {% endblock %}
 
-{% block avanzu_logo_lg %}
-    <b>Kimai</b> - Time Tracking
-{% endblock %}
-
-{% block avanzu_footer %}
-    {% block footer %}
-    <!-- Page rendered on {{ 'now'|localizeddate('long', 'long', null, 'UTC') }} -->
-    {% endblock %}
-{% endblock %}
-
-{% block avanzu_navbar_messages %}
+{% block navbar_start %}
     {% if app.user is not null and is_granted('IS_AUTHENTICATED_REMEMBERED') %}
-        {% if is_granted('ROLE_USER') %}
-            <li class="visible-xs-inline-block">
-                <a href="{{ path('timesheet') }}" class="ddt-large">
-                    <i class="{{ 'timesheet'|icon }} fa-2x"></i>
-                </a>
-            </li>
+        {% if is_granted('view_own_timesheet') %}
+            {% if app.user.preferenceValue('login.initial_view') == 'calendar' %}
+                <li class="visible-xs-inline-block">
+                    <a href="{{ path('calendar') }}" class="ddt-large">
+                        <i class="{{ 'calendar'|icon }} fa-2x"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="visible-xs-inline-block">
+                    <a href="{{ path('timesheet') }}" class="ddt-large">
+                        <i class="{{ 'timesheet'|icon }} fa-2x"></i>
+                    </a>
+                </li>
+            {% endif %}
         {% endif %}
-        {% if is_granted('ROLE_TEAMLEAD') %}
+        {% if is_granted('view_invoice') %}
             <li class="visible-xs-inline-block">
                 <a href="{{ path('invoice') }}" class="ddt-large">
                     <i class="{{ 'invoice'|icon }} fa-2x"></i>
                 </a>
             </li>
         {% endif %}
+        {% if is_granted('create_export') %}
+            <li class="visible-xs-inline-block">
+                <a href="{{ path('export') }}" class="ddt-large">
+                    <i class="{{ 'export'|icon }} fa-2x"></i>
+                </a>
+            </li>
+        {% endif %}
         {% block navbar_extensions %}{% endblock %}
-        {{ render(controller('App\\Controller\\TimesheetController::activeEntriesAction')) }}
+        {{ render(controller('App\\Controller\\LayoutController::activeEntries')) }}
     {% endif %}
 {% endblock %}
 
-{% block avanzu_navbar_notifications %}
+
+{# these blocks and the hook-in logic by the AdminTheme could be re-used by Kimai or an extension at some point #}
+{#
+{% block navbar_messages %}{% endblock %}
+{% block navbar_notifications %}{% endblock %}
+{% block navbar_tasks %}{% endblock %}
+{% block navbar_end %}{% endblock %}
+#}
+
+{# deactivated blocks, as Kimai does not ship the sidebar for UX reasons #}
+{% block sidebar_user %}{% endblock %}
+{% block sidebar_search %}{% endblock %}
+
+{% block navbar_user %}
     {% if app.user is not null and is_granted('IS_AUTHENTICATED_REMEMBERED') %}
-        {{ render(controller('App\\Controller\\ActivityController::recentActivitiesAction')) }}
+        {% include 'navbar/recent-activities.html.twig' %}
     {% endif %}
+    {% import "macros/widgets.html.twig" as widgets %}
+    <li class="dropdown user-menu">
+        <a href="#" class="dropdown-toggle ddt-large" data-toggle="dropdown">
+            {{ widgets.user_avatar(app.user, false) }}
+        </a>
+        <ul class="dropdown-menu">
+            {% if app.user is not null %}
+                {% if is_granted('view', app.user) %}
+                <li>
+                    <a href="{{ path('user_profile', {'username' : app.user.username}) }}">
+                        <h4 class="control-sidebar-subheading">
+                            <i class="{{ 'avatar'|icon }}"></i>
+                            {{ 'my.profile'|trans }}
+                        </h4>
+                    </a>
+                </li>
+                {% endif %}
+                {% if is_granted('edit', app.user) %}
+                <li>
+                    <a href="{{ path('user_profile_edit', {'username' : app.user.username}) }}">
+                        <h4 class="control-sidebar-subheading">
+                            <i class="{{ 'profile'|icon }}"></i>
+                            {{ 'action.edit'|trans }}
+                        </h4>
+                    </a>
+                </li>
+                {% endif %}
+                {% if is_granted('preferences', app.user) %}
+                <li>
+                    <a href="{{ path('user_profile_preferences', {'username' : app.user.username})  }}">
+                        <h4 class="control-sidebar-subheading">
+                            <i class="{{ 'settings'|icon }}"></i>
+                            {{ 'profile.preferences'|trans }}
+                        </h4>
+                    </a>
+                </li>
+                {% endif %}
+                <li>
+                    <a href="{{ path('fos_user_security_logout') }}">
+                        <h4 class="control-sidebar-subheading">
+                            <i class="{{ 'logout'|icon }}"></i>
+                            {{ 'menu.logout'|trans }}
+                        </h4>
+                    </a>
+                </li>
+            {% endif %}
+            {% if kimai_context.show_about %}
+            <li class="divider"></li>
+            <li>
+                <a href="{{ path('about') }}">
+                    <h4 class="control-sidebar-subheading">
+                        <i class="{{ 'about'|icon }}"></i>
+                        {{ 'about.title'|trans({}, 'about') }}
+                    </h4>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </li>
 {% endblock %}
 
-{# deactivated blocks #}
-{% block avanzu_navbar_tasks %}{% endblock %}
-{% block avanzu_navbar_user %}{% endblock %}
-{% block avanzu_sidebar_user %}{% endblock %}
-{% block avanzu_sidebar_search %}{% endblock %}
-
-{% block avanzu_breadcrumb %}
-    {{ block('page_actions') }}
+{% block breadcrumb %}
+    {% block page_search %}{% endblock %}
+    {% block page_actions %}{% endblock %}
 {% endblock %}
-
-{% block page_actions %}{% endblock %}
 
 {% block stylesheets %}
     {# we do not call parent() as we use a custom built for the frontend assets and don't want the default <stylesheet> #}
-    <link rel="stylesheet" href="{{ asset('build/app.css') }}">
+    {{ encore_entry_link_tags('app') }}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::STYLESHEET')) %}
+    {{ event.content|raw }}
 {% endblock %}
 
 {% block head %}
     {{ parent() }}
-    <script src="{{ asset('build/app.js') }}"></script>
+    {{ encore_entry_script_tags('app') }}
     {% include 'partials/head.html.twig' %}
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::HTML_HEAD')) %}
+    {{ event.content|raw }}
 {% endblock %}
 
 {% block javascripts %}
-    {# we do not call parent() as we use a custom built for the frontend assets and don't want the default <script> #}
+    {# no call to parent(), as we use a custom built for the frontend assets and don't want the default <script> #}
     <script type="text/javascript">
-        $(document).ready(function () {
-            $.kimai.init({locale: '{{ app.request.locale }}', confirmDelete: '{{ 'confirm.delete'|trans }}'});
-            //$.kimai.pauseRecord('li.messages-menu ul.menu li');
+        window.addEventListener('load', function() {
+            var loader = new KimaiWebLoader(
+                {
+                    login: '{{ path('fos_user_security_login') }}',
+                    locale: '{{ app.request.locale }}',
+                    first_dow_iso: {{ iso_day_by_name(app.user.firstDayOfWeek) }},
+                    twentyFourHours: {{ 'true'|hour24('false') }},
+                    autoReloadDatatable: {% if theme_config('auto_reload_datatable') %}true{% else %}false{% endif %},
+                    autoComplete: {{ theme_config('autocomplete_chars') }},
+                    defaultColor: '{{ constant('App\\Constants::DEFAULT_COLOR') }}',
+                },
+                {
+                    'confirm': '{{ 'confirm'|trans }}',
+                    'cancel': '{{ 'cancel'|trans }}',
+                    'today': '{{ 'daterangepicker.today'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'yesterday': '{{ 'daterangepicker.yesterday'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'lastWeek': '{{ 'daterangepicker.lastWeek'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'thisWeek': '{{ 'daterangepicker.thisWeek'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'lastMonth': '{{ 'daterangepicker.lastMonth'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'thisMonth': '{{ 'daterangepicker.thisMonth'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'lastYear': '{{ 'daterangepicker.lastYear'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'thisYear': '{{ 'daterangepicker.thisYear'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'customRange': '{{ 'daterangepicker.customRange'|trans({}, 'daterangepicker')|escape('js') }}',
+                    'timesheet.start.success': '{{ 'timesheet.start.success'|trans({}, 'flashmessages')|escape('js') }}',
+                    'timesheet.start.error': '{{ 'timesheet.start.error'|trans({}, 'flashmessages')|escape('js') }}',
+                    'timesheet.start.exceeded_limit': '{{ 'timesheet.start.exceeded_limit'|trans({}, 'flashmessages')|escape('js') }}',
+                    'timesheet.stop.success': '{{ 'timesheet.stop.success'|trans({}, 'flashmessages')|escape('js') }}',
+                    'timesheet.stop.error': '{{ 'timesheet.stop.error'|trans({}, 'flashmessages')|escape('js') }}',
+                    'action.update.success': '{{ 'action.update.success'|trans({}, 'flashmessages')|escape('js') }}',
+                    'action.update.error': '{{ 'action.update.error'|trans({}, 'flashmessages')|escape('js') }}',
+                    'action.delete.success': '{{ 'action.delete.success'|trans({}, 'flashmessages')|escape('js') }}',
+                    'action.delete.error': '{{ 'action.delete.error'|trans({}, 'flashmessages')|escape('js') }}',
+                    'confirm.delete': '{{ 'confirm.delete'|trans|escape('js') }}',
+                    'delete': '{{ 'action.delete'|trans|escape('js') }}',
+                    'login.required': '{{ 'login_required'|trans|escape('js') }}'
+                }
+            );
+            window.kimai = loader.getKimai();
         });
     </script>
+    {% set event = trigger(constant('App\\Event\\ThemeEvent::JAVASCRIPT')) %}
+    {{ event.content|raw }}
 {% endblock %}

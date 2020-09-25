@@ -9,9 +9,13 @@
 
 namespace App\Timesheet\Calculator;
 
+use App\Entity\Rate;
+use App\Entity\RateInterface;
 use App\Entity\Timesheet;
 use App\Entity\UserPreference;
+use App\Repository\TimesheetRepository;
 use App\Timesheet\CalculatorInterface;
+use App\Timesheet\Util;
 
 /**
  * Implementation to calculate the rate for a timesheet record.
@@ -21,15 +25,16 @@ class RateCalculator implements CalculatorInterface
     /**
      * @var array
      */
-    protected $rates;
-
+    private $rates;
     /**
-     * RateCalculator constructor.
-     * @param array $rates
+     * @var TimesheetRepository
      */
-    public function __construct(array $rates)
+    private $repository;
+
+    public function __construct(array $rates, TimesheetRepository $repository)
     {
         $this->rates = $rates;
+        $this->repository = $repository;
     }
 
     /**
@@ -39,83 +44,91 @@ class RateCalculator implements CalculatorInterface
     {
         if (null === $record->getEnd()) {
             $record->setRate(0);
+            $record->setInternalRate(0);
 
             return;
         }
 
-        $fixedRate = $this->findFixedRate($record);
+        $fixedRate = $record->getFixedRate();
+        $hourlyRate = $record->getHourlyRate();
+        $fixedInternalRate = null;
+        $internalRate = null;
+
+        $rate = $this->getBestFittingRate($record);
+
+        if (null !== $rate) {
+            if ($rate->isFixed()) {
+                $fixedRate = $fixedRate ?? $rate->getRate();
+                $fixedInternalRate = $rate->getRate();
+                if (null !== $rate->getInternalRate()) {
+                    $fixedInternalRate = $rate->getInternalRate();
+                }
+            } else {
+                $hourlyRate = $hourlyRate ?? $rate->getRate();
+                $internalRate = $rate->getRate();
+                if (null !== $rate->getInternalRate()) {
+                    $internalRate = $rate->getInternalRate();
+                }
+            }
+        }
+
         if (null !== $fixedRate) {
-            $record->setRate($fixedRate);
             $record->setFixedRate($fixedRate);
+            $record->setRate($fixedRate);
+            if (null === $fixedInternalRate) {
+                $fixedInternalRate = (float) $record->getUser()->getPreferenceValue(UserPreference::INTERNAL_RATE, $fixedRate);
+            }
+            $record->setInternalRate($fixedInternalRate);
 
             return;
         }
 
-        $hourlyRate = $this->findHourlyRate($record);
+        // user preferences => fallback if nothing else was configured
+        if (null === $hourlyRate) {
+            $hourlyRate = (float) $record->getUser()->getPreferenceValue(UserPreference::HOURLY_RATE, 0.00);
+        }
+        if (null === $internalRate) {
+            $internalRate = $record->getUser()->getPreferenceValue(UserPreference::INTERNAL_RATE, 0.00);
+            if (null === $internalRate) {
+                $internalRate = $hourlyRate;
+            } else {
+                $internalRate = (float) $internalRate;
+            }
+        }
+
         $factor = $this->getRateFactor($record);
 
-        $hourlyRate = (float) $hourlyRate * $factor;
-        $rate = (float) $hourlyRate * ($record->getDuration() / 3600);
-
-        $record->setHourlyRate($hourlyRate);
-        $record->setRate($rate);
+        $factoredHourlyRate = (float) ($hourlyRate * $factor);
+        $factoredInternalRate = (float) ($internalRate * $factor);
+        $totalRate = 0;
+        $totalInternalRate = 0;
+        if (null !== $record->getDuration()) {
+            $totalRate = Util::calculateRate($factoredHourlyRate, $record->getDuration());
+            $totalInternalRate = Util::calculateRate($factoredInternalRate, $record->getDuration());
+        }
+        $record->setHourlyRate($factoredHourlyRate);
+        $record->setInternalRate($totalInternalRate);
+        $record->setRate($totalRate);
     }
 
-    /**
-     * @param Timesheet $record
-     * @return float
-     */
-    protected function findHourlyRate(Timesheet $record)
+    private function getBestFittingRate(Timesheet $timesheet): ?RateInterface
     {
-        if (null !== $record->getHourlyRate()) {
-            return $record->getHourlyRate();
-        }
-
-        $activity = $record->getActivity();
-        if (null !== $activity->getHourlyRate()) {
-            return $activity->getHourlyRate();
-        }
-
-        $project = $record->getProject();
-        if (null !== $project) {
-            if (null !== $project->getHourlyRate()) {
-                return $project->getHourlyRate();
+        $rates = $this->repository->findMatchingRates($timesheet);
+        /** @var RateInterface[] $sorted */
+        $sorted = [];
+        foreach ($rates as $rate) {
+            $score = $rate->getScore();
+            if (null !== $rate->getUser() && $timesheet->getUser() === $rate->getUser()) {
+                ++$score;
             }
 
-            $customer = $project->getCustomer();
-            if (null !== $customer->getHourlyRate()) {
-                return $customer->getHourlyRate();
-            }
+            $sorted[$score] = $rate;
         }
 
-        return (float) $record->getUser()->getPreferenceValue(UserPreference::HOURLY_RATE, 0);
-    }
+        if (!empty($sorted)) {
+            ksort($sorted);
 
-    /**
-     * @param Timesheet $record
-     * @return float|null
-     */
-    protected function findFixedRate(Timesheet $record)
-    {
-        if (null !== $record->getFixedRate()) {
-            return $record->getFixedRate();
-        }
-
-        $activity = $record->getActivity();
-        if (null !== $activity->getFixedRate()) {
-            return $activity->getFixedRate();
-        }
-
-        $project = $record->getProject();
-        if (null !== $project) {
-            if (null !== $project->getFixedRate()) {
-                return $project->getFixedRate();
-            }
-
-            $customer = $project->getCustomer();
-            if (null !== $customer->getFixedRate()) {
-                return $customer->getFixedRate();
-            }
+            return end($sorted);
         }
 
         return null;
@@ -131,7 +144,7 @@ class RateCalculator implements CalculatorInterface
         foreach ($this->rates as $rateFactor) {
             $weekday = $record->getEnd()->format('l');
             $days = array_map('strtolower', $rateFactor['days']);
-            if (in_array(strtolower($weekday), $days)) {
+            if (\in_array(strtolower($weekday), $days)) {
                 $factor += $rateFactor['factor'];
             }
         }

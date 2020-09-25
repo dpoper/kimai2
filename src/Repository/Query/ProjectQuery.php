@@ -14,52 +14,112 @@ use App\Entity\Customer;
 /**
  * Can be used for advanced queries with the: ProjectRepository
  */
-class ProjectQuery extends VisibilityQuery
+class ProjectQuery extends BaseQuery implements VisibilityInterface
 {
-    /**
-     * @var Customer|int
-     */
-    protected $customer;
+    use VisibilityTrait;
+
+    public const PROJECT_ORDER_ALLOWED = [
+        'id', 'name', 'comment', 'customer', 'orderNumber', 'projectStart',
+        'projectEnd', 'orderNumber', 'orderDate', 'start', 'end', 'visible'
+    ];
 
     /**
      * @var array
      */
-    protected $ignored = [];
-
+    private $customers = [];
     /**
-     * @param mixed $entity
-     * @return $this
+     * @var \DateTime
      */
-    public function addIgnoredEntity($entity)
-    {
-        $this->ignored[] = $entity;
+    private $projectStart;
+    /**
+     * @var \DateTime
+     */
+    private $projectEnd;
 
-        return $this;
+    public function __construct()
+    {
+        $this->setDefaults([
+            'orderBy' => 'name',
+        ]);
     }
 
     /**
-     * @return array
-     */
-    public function getIgnoredEntities()
-    {
-        return $this->ignored;
-    }
-
-    /**
-     * @return Customer|int
+     * @return Customer|int|null
+     * @deprecated since 1.9 - use getCustomers() instead - will be removed with 2.0
      */
     public function getCustomer()
     {
-        return $this->customer;
+        if (\count($this->customers) > 0) {
+            return $this->customers[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param Customer|int|null $customer
+     * @return $this
+     * @deprecated since 1.9 - use setCustomers() or addCustomer() instead - will be removed with 2.0
+     */
+    public function setCustomer($customer = null)
+    {
+        if (null === $customer) {
+            $this->customers = [];
+        } else {
+            $this->customers = [$customer];
+        }
+
+        return $this;
     }
 
     /**
      * @param Customer|int $customer
      * @return $this
      */
-    public function setCustomer($customer = null)
+    public function addCustomer($customer)
     {
-        $this->customer = $customer;
+        $this->customers[] = $customer;
+
+        return $this;
+    }
+
+    public function setCustomers(array $customers): self
+    {
+        $this->customers = $customers;
+
+        return $this;
+    }
+
+    public function getCustomers(): array
+    {
+        return $this->customers;
+    }
+
+    public function hasCustomers(): bool
+    {
+        return !empty($this->customers);
+    }
+
+    public function getProjectStart(): ?\DateTime
+    {
+        return $this->projectStart;
+    }
+
+    public function setProjectStart(?\DateTime $projectStart): ProjectQuery
+    {
+        $this->projectStart = $projectStart;
+
+        return $this;
+    }
+
+    public function getProjectEnd(): ?\DateTime
+    {
+        return $this->projectEnd;
+    }
+
+    public function setProjectEnd(?\DateTime $projectEnd): ProjectQuery
+    {
+        $this->projectEnd = $projectEnd;
 
         return $this;
     }

@@ -12,7 +12,7 @@ namespace App\DataFixtures;
 use App\Entity\User;
 use App\Entity\UserPreference;
 use Doctrine\Bundle\FixturesBundle\Fixture;
-use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\Persistence\ObjectManager;
 use Faker\Factory;
 use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
 
@@ -22,6 +22,8 @@ use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
  *
  * Execute this command to load the data:
  * $ php bin/console doctrine:fixtures:load
+ *
+ * @codeCoverageIgnore
  */
 class UserFixtures extends Fixture
 {
@@ -34,11 +36,12 @@ class UserFixtures extends Fixture
     public const USERNAME_ADMIN = 'anna_admin';
     public const USERNAME_SUPER_ADMIN = 'susan_super';
 
-    public const AMOUNT_EXTRA_USER = 2;
+    public const AMOUNT_EXTRA_USER = 25;
 
     public const MIN_RATE = 30;
     public const MAX_RATE = 120;
 
+    // lower batch size, as user preferences are added in the same run
     public const BATCH_SIZE = 50;
 
     /**
@@ -85,7 +88,7 @@ class UserFixtures extends Fixture
                 ->setEnabled($userData[6])
                 ->setPassword($passwordEncoder->encodePassword($user, self::DEFAULT_PASSWORD))
                 ->setApiToken($passwordEncoder->encodePassword($user, self::DEFAULT_API_TOKEN))
-                ->setPreferences([$this->getUserPreference($user)])
+                ->setPreferences($this->getUserPreferences($user, $userData[7]))
             ;
 
             $manager->persist($user);
@@ -97,16 +100,28 @@ class UserFixtures extends Fixture
 
     /**
      * @param User $user
-     * @return UserPreference
+     * @param string|null $timezone
+     * @return array
      */
-    private function getUserPreference(user $user)
+    private function getUserPreferences(User $user, string $timezone = null)
     {
-        $preference = new UserPreference();
-        $preference->setName(UserPreference::HOURLY_RATE);
-        $preference->setValue(rand(self::MIN_RATE, self::MAX_RATE));
-        $preference->setUser($user);
+        $preferences = [];
 
-        return $preference;
+        $prefHourlyRate = new UserPreference();
+        $prefHourlyRate->setName(UserPreference::HOURLY_RATE);
+        $prefHourlyRate->setValue(rand(self::MIN_RATE, self::MAX_RATE));
+        $prefHourlyRate->setUser($user);
+        $preferences[] = $prefHourlyRate;
+
+        if (null !== $timezone) {
+            $prefTimezone = new UserPreference();
+            $prefTimezone->setName(UserPreference::TIMEZONE);
+            $prefTimezone->setValue($timezone);
+            $prefTimezone->setUser($user);
+            $preferences[] = $prefTimezone;
+        }
+
+        return $preferences;
     }
 
     /**
@@ -117,28 +132,43 @@ class UserFixtures extends Fixture
     private function loadTestUsers(ObjectManager $manager)
     {
         $passwordEncoder = $this->encoder;
-
         $faker = Factory::create();
+        $existingName = [];
+        $existingEmail = [];
+
         for ($i = 1; $i <= self::AMOUNT_EXTRA_USER; $i++) {
+            $username = $faker->userName;
+            $email = $faker->email;
+
+            if (\in_array($username, $existingName)) {
+                continue;
+            }
+
+            if (\in_array($email, $existingEmail)) {
+                continue;
+            }
+
+            $existingName[] = $username;
+            $existingEmail[] = $email;
+
             $user = new User();
             $user
                 ->setAlias($faker->name)
                 ->setTitle(substr($faker->jobTitle, 0, 49))
-                ->setUsername($faker->userName)
-                ->setEmail($faker->email)
+                ->setUsername($username)
+                ->setEmail($email)
                 ->setRoles([User::ROLE_USER])
-                ->setAvatar(self::DEFAULT_AVATAR)
                 ->setEnabled(true)
                 ->setPassword($passwordEncoder->encodePassword($user, self::DEFAULT_PASSWORD))
-                ->setPreferences([$this->getUserPreference($user)])
+                ->setPreferences($this->getUserPreferences($user))
             ;
 
-            if ($i % self::BATCH_SIZE == 0) {
+            $manager->persist($user);
+
+            if ($i % self::BATCH_SIZE === 0) {
                 $manager->flush();
                 $manager->clear();
             }
-
-            $manager->persist($user);
         }
 
         $manager->flush();
@@ -150,32 +180,68 @@ class UserFixtures extends Fixture
      */
     protected function getUserDefinition()
     {
+        // alias = $userData[0]
+        // title = $userData[1]
+        // username = $userData[2]
+        // email = $userData[3]
+        // roles = [$userData[4]]
+        // avatar = $userData[5]
+        // enabled = $userData[6]
+        // timezone = $userData[7]
+
         return [
             [
-                'Clara Haynes', 'CFO', 'clara_customer', 'clara_customer@example.com', User::ROLE_CUSTOMER,
-                'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=monsterid&f=y', true
-            ],
-            [
-                'John Doe', 'Developer', self::USERNAME_USER, 'john_user@example.com', User::ROLE_USER,
-                self::DEFAULT_AVATAR, true
+                'John Doe',
+                'Developer',
+                self::USERNAME_USER,
+                'john_user@example.com',
+                User::ROLE_USER,
+                self::DEFAULT_AVATAR,
+                true,
+                'America/Vancouver',
             ],
             // inactive user to test login
             [
-                'Chris Deactive', 'Developer (left company)', 'chris_user', 'chris_user@example.com', User::ROLE_USER,
-                self::DEFAULT_AVATAR, false
+                'Chris Deactive',
+                'Developer (left company)',
+                'chris_user',
+                'chris_user@example.com',
+                User::ROLE_USER,
+                self::DEFAULT_AVATAR,
+                false,
+                'Australia/Sydney',
             ],
             [
-                'Tony Maier', 'Head of Sales', self::USERNAME_TEAMLEAD, 'tony_teamlead@example.com', User::ROLE_TEAMLEAD,
-                'https://en.gravatar.com/userimage/3533186/bf2163b1dd23f3107a028af0195624e9.jpeg', true
+                'Tony Maier',
+                'Head of Sales',
+                self::USERNAME_TEAMLEAD,
+                'tony_teamlead@example.com',
+                User::ROLE_TEAMLEAD,
+                'https://en.gravatar.com/userimage/3533186/bf2163b1dd23f3107a028af0195624e9.jpeg',
+                true,
+                'Asia/Bangkok',
             ],
             // no avatar to test default image macro
             [
-                'Anna Smith', 'Administrator', self::USERNAME_ADMIN, 'anna_admin@example.com', User::ROLE_ADMIN, null, true
+                'Anna Smith',
+                'Administrator',
+                self::USERNAME_ADMIN,
+                'anna_admin@example.com',
+                User::ROLE_ADMIN,
+                null,
+                true,
+                'Europe/London',
             ],
             // no alias to test twig username macro
             [
-                null, 'Super Administrator', self::USERNAME_SUPER_ADMIN, 'susan_super@example.com', User::ROLE_SUPER_ADMIN,
-                '/build/images/default_avatar.png', true
+                null,
+                'Super Administrator',
+                self::USERNAME_SUPER_ADMIN,
+                'susan_super@example.com',
+                User::ROLE_SUPER_ADMIN,
+                '/build/images/default_avatar.png',
+                true,
+                'Europe/Berlin',
             ]
         ];
     }

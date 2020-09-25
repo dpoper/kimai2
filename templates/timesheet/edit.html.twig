@@ -1,14 +1,7 @@
-{% extends 'base.html.twig' %}
-{% import "macros/widgets.html.twig" as widgets %}
-{% import "macros/datatables.html.twig" as tables %}
+{% extends 'timesheet/layout-edit.html.twig' %}
+{% import "timesheet/actions.html.twig" as actions %}
 
 {% block page_title %}{{ 'timesheet.title'|trans }}{% endblock %}
-{% block page_subtitle %}{{ 'timesheet.subtitle'|trans }}{% endblock %}
+{% block page_actions %}{{ actions.timesheet(timesheet, 'edit') }}{% endblock %}
 
-{% block main %}
-    {{ include('default/_form.html.twig', {
-        'title': (entry.id ? 'timesheet.edit'|trans : 'create'|trans),
-        'form': form,
-        'back': path('timesheet')
-    }) }}
-{% endblock %}
+{% set route_back = 'timesheet' %}

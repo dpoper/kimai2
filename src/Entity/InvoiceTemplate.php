@@ -10,23 +10,22 @@
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * InvoiceTemplate
- *
  * @ORM\Entity(repositoryClass="App\Repository\InvoiceTemplateRepository")
- * @ORM\Table(
- *      name="invoice_templates",
+ * @ORM\Table(name="kimai2_invoice_templates",
  *      uniqueConstraints={
  *          @ORM\UniqueConstraint(columns={"name"})
  *      }
  * )
+ * @UniqueEntity("name")
  */
 class InvoiceTemplate
 {
     /**
-     * @var int
+     * @var int|null
      *
      * @ORM\Column(name="id", type="integer")
      * @ORM\Id
@@ -39,7 +38,7 @@ class InvoiceTemplate
      *
      * @ORM\Column(name="name", type="string", length=60, nullable=false)
      * @Assert\NotBlank()
-     * @Assert\Length(min=1, max=60)
+     * @Assert\Length(min=1, max=60, allowEmptyString=false)
      */
     private $name;
 
@@ -62,9 +61,24 @@ class InvoiceTemplate
     /**
      * @var string
      *
-     * @ORM\Column(name="address", type="text", length=65535, nullable=true)
+     * @ORM\Column(name="vat_id", type="string", length=50, nullable=true)
+     * @Assert\Length(max=50)
+     */
+    private $vatId;
+
+    /**
+     * @var string
+     *
+     * @ORM\Column(name="address", type="text", nullable=true)
      */
     private $address;
+
+    /**
+     * @var string
+     *
+     * @ORM\Column(name="contact", type="text", nullable=true)
+     */
+    private $contact;
 
     /**
      * @var int
@@ -87,6 +101,7 @@ class InvoiceTemplate
      *
      * @ORM\Column(name="calculator", type="string", length=20, nullable=false)
      * @Assert\NotBlank()
+     * @Assert\Length(max=20)
      */
     private $calculator = 'default';
     /**
@@ -94,6 +109,7 @@ class InvoiceTemplate
      *
      * @ORM\Column(name="number_generator", type="string", length=20, nullable=false)
      * @Assert\NotBlank()
+     * @Assert\Length(max=20)
      */
     private $numberGenerator = 'default';
 
@@ -102,214 +118,226 @@ class InvoiceTemplate
      *
      * @ORM\Column(name="renderer", type="string", length=20, nullable=false)
      * @Assert\NotBlank()
+     * @Assert\Length(max=20)
      */
     private $renderer = 'default';
 
     /**
      * @var string
      *
-     * @ORM\Column(name="payment_terms", type="text", length=65535, nullable=true)
+     * @ORM\Column(name="payment_terms", type="text", nullable=true)
      */
     private $paymentTerms;
 
     /**
-     * @return int
+     * @var string
+     *
+     * @ORM\Column(name="payment_details", type="text", nullable=true)
      */
-    public function getId()
+    private $paymentDetails;
+
+    /**
+     * Used when rendering HTML templates.
+     *
+     * @var bool
+     *
+     * @ORM\Column(name="decimal_duration", type="boolean", nullable=false, options={"default": false})
+     * @Assert\NotNull()
+     */
+    private $decimalDuration = false;
+
+    /**
+     * Used for translations and locale dependent number and date formats.
+     *
+     * @var string
+     *
+     * @ORM\Column(name="language", type="string", length=6, nullable=true)
+     */
+    private $language;
+
+    public function getId(): ?int
     {
         return $this->id;
     }
 
-    /**
-     * Set name
-     *
-     * @param string $name
-     * @return $this
-     */
-    public function setName($name)
+    public function setName(string $name): InvoiceTemplate
     {
         $this->name = $name;
 
         return $this;
     }
 
-    /**
-     * Get name
-     *
-     * @return string
-     */
-    public function getName()
+    public function getName(): ?string
     {
         return $this->name;
     }
 
-    /**
-     * @return string
-     */
+    // ---- trait methods below ---
+
     public function getTitle(): ?string
     {
         return $this->title;
     }
 
-    /**
-     * @param string $title
-     * @return InvoiceTemplate
-     */
-    public function setTitle(string $title)
+    public function setTitle(string $title): InvoiceTemplate
     {
         $this->title = $title;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getAddress(): ?string
     {
         return $this->address;
     }
 
-    /**
-     * @param string $address
-     * @return InvoiceTemplate
-     */
-    public function setAddress($address)
+    public function setAddress(?string $address): InvoiceTemplate
     {
         $this->address = $address;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getNumberGenerator(): ?string
+    public function getNumberGenerator(): string
     {
         return $this->numberGenerator;
     }
 
-    /**
-     * @param string $numberGenerator
-     * @return InvoiceTemplate
-     */
-    public function setNumberGenerator(string $numberGenerator)
+    public function setNumberGenerator(string $numberGenerator): InvoiceTemplate
     {
         $this->numberGenerator = $numberGenerator;
 
         return $this;
     }
 
-    /**
-     * @return int
-     */
-    public function getDueDays(): ?int
+    public function getDueDays(): int
     {
         return $this->dueDays;
     }
 
-    /**
-     * @param int $dueDays
-     * @return InvoiceTemplate
-     */
-    public function setDueDays(int $dueDays)
+    public function setDueDays(int $dueDays): InvoiceTemplate
     {
         $this->dueDays = $dueDays;
 
         return $this;
     }
 
-    /**
-     * @return float
-     */
-    public function getVat(): ?float
+    public function getVat(): float
     {
         return $this->vat;
     }
 
-    /**
-     * @param float $vat
-     * @return InvoiceTemplate
-     */
-    public function setVat(float $vat)
+    public function setVat(float $vat): InvoiceTemplate
     {
         $this->vat = $vat;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getCompany(): ?string
     {
         return $this->company;
     }
 
-    /**
-     * @param string $company
-     * @return InvoiceTemplate
-     */
-    public function setCompany(string $company)
+    public function setCompany(string $company): InvoiceTemplate
     {
         $this->company = $company;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getRenderer(): string
     {
         return $this->renderer;
     }
 
-    /**
-     * @param string $renderer
-     * @return InvoiceTemplate
-     */
-    public function setRenderer(string $renderer)
+    public function setRenderer(string $renderer): InvoiceTemplate
     {
         $this->renderer = $renderer;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getCalculator(): string
     {
         return $this->calculator;
     }
 
-    /**
-     * @param string $calculator
-     * @return InvoiceTemplate
-     */
-    public function setCalculator(string $calculator)
+    public function setCalculator(string $calculator): InvoiceTemplate
     {
         $this->calculator = $calculator;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getPaymentTerms(): ?string
     {
         return $this->paymentTerms;
     }
 
-    /**
-     * @param string $paymentTerms
-     * @return InvoiceTemplate
-     */
-    public function setPaymentTerms(?string $paymentTerms)
+    public function setPaymentTerms(?string $paymentTerms): InvoiceTemplate
     {
         $this->paymentTerms = $paymentTerms;
+
+        return $this;
+    }
+
+    public function getVatId(): ?string
+    {
+        return $this->vatId;
+    }
+
+    public function setVatId(?string $vatId): InvoiceTemplate
+    {
+        $this->vatId = $vatId;
+
+        return $this;
+    }
+
+    public function getContact(): ?string
+    {
+        return $this->contact;
+    }
+
+    public function setContact(?string $contact): InvoiceTemplate
+    {
+        $this->contact = $contact;
+
+        return $this;
+    }
+
+    public function getPaymentDetails(): ?string
+    {
+        return $this->paymentDetails;
+    }
+
+    public function setPaymentDetails(?string $paymentDetails): InvoiceTemplate
+    {
+        $this->paymentDetails = $paymentDetails;
+
+        return $this;
+    }
+
+    public function isDecimalDuration(): bool
+    {
+        return $this->decimalDuration;
+    }
+
+    public function setDecimalDuration(bool $decimalDuration): InvoiceTemplate
+    {
+        $this->decimalDuration = $decimalDuration;
+
+        return $this;
+    }
+
+    public function getLanguage(): ?string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(?string $language): InvoiceTemplate
+    {
+        $this->language = $language;
 
         return $this;
     }
@@ -320,5 +348,12 @@ class InvoiceTemplate
     public function __toString()
     {
         return $this->getName();
+    }
+
+    public function __clone()
+    {
+        if ($this->id) {
+            $this->id = null;
+        }
     }
 }

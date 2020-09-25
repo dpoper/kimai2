@@ -11,7 +11,7 @@ namespace App\Tests\Controller;
 
 /**
  * This test makes sure the login and registration work as expected.
- * They live in the FOSUserBundle and are tested already, but we use a different layout.
+ * The logic is located in the FOSUserBundle and already tested, but we use a different layout.
  *
  * @group integration
  */
@@ -36,15 +36,15 @@ class SecurityControllerTest extends ControllerBaseTest
         $this->assertTrue($client->getResponse()->isSuccessful());
 
         $content = $response->getContent();
-        $this->assertContains('<title>Kimai - Time Tracking</title>', $content);
-        $this->assertContains('<form action="/en/login_check" method="post">', $content);
-        $this->assertContains('<input type="text" name="_username"', $content);
-        $this->assertContains('<input name="_password" type="password"', $content);
-        $this->assertContains('<input id="remember_me" name="_remember_me" type="checkbox"', $content);
-        $this->assertContains('">Login</button>', $content);
-        $this->assertContains('<input type="hidden" name="_csrf_token" value="', $content);
-        $this->assertContains('<a href="/en/register/"', $content);
-        $this->assertContains('Register a new account', $content);
+        $this->assertStringContainsString('<title>Kimai – Time Tracking</title>', $content);
+        $this->assertStringContainsString('<form action="/en/login_check" method="post">', $content);
+        $this->assertStringContainsString('<input type="text" name="_username"', $content);
+        $this->assertStringContainsString('<input name="_password" type="password"', $content);
+        $this->assertStringContainsString('<input id="remember_me" name="_remember_me" type="checkbox"', $content);
+        $this->assertStringContainsString('">Login</button>', $content);
+        $this->assertStringContainsString('<input type="hidden" name="_csrf_token" value="', $content);
+        $this->assertStringContainsString('<a href="/en/register/"', $content);
+        $this->assertStringContainsString('Register a new account', $content);
     }
 
     public function testRegisterAccountPageIsRendered()
@@ -56,19 +56,19 @@ class SecurityControllerTest extends ControllerBaseTest
         $this->assertTrue($response->isSuccessful());
 
         $content = $response->getContent();
-        $this->assertContains('<title>Kimai - Time Tracking</title>', $content);
-        $this->assertContains('Register a new account', $content);
-        $this->assertContains('<form name="fos_user_registration_form" method="post" action="/en/register/" class="fos_user_registration_register">', $content);
-        $this->assertContains('<input type="email"', $content);
-        $this->assertContains('id="fos_user_registration_form_email" name="fos_user_registration_form[email]" required="required" class="form-control"', $content);
-        $this->assertContains('<input type="text"', $content);
-        $this->assertContains('id="fos_user_registration_form_username" name="fos_user_registration_form[username]" required="required" maxlength="60" pattern=".{3,}" class="form-control"', $content);
-        $this->assertContains('<input type="password"', $content);
-        $this->assertContains('id="fos_user_registration_form_plainPassword_first" name="fos_user_registration_form[plainPassword][first]" required="required" autocomplete="new-password" class="form-control"', $content);
-        $this->assertContains('id="fos_user_registration_form_plainPassword_second" name="fos_user_registration_form[plainPassword][second]" required="required" autocomplete="new-password" class="form-control"', $content);
-        $this->assertContains('<input type="hidden"', $content);
-        $this->assertContains('id="fos_user_registration_form__token" name="fos_user_registration_form[_token]" class=" form-control"', $content);
-        $this->assertContains('>Register</button>', $content);
+        $this->assertStringContainsString('<title>Kimai – Time Tracking</title>', $content);
+        $this->assertStringContainsString('Register a new account', $content);
+        $this->assertStringContainsString('<form name="fos_user_registration_form" method="post" action="/en/register/" class="fos_user_registration_register">', $content);
+        $this->assertStringContainsString('<input type="email"', $content);
+        $this->assertStringContainsString('id="fos_user_registration_form_email" name="fos_user_registration_form[email]" required="required"', $content);
+        $this->assertStringContainsString('<input type="text"', $content);
+        $this->assertStringContainsString('id="fos_user_registration_form_username" name="fos_user_registration_form[username]" required="required" maxlength="60" pattern=".{2,}"', $content);
+        $this->assertStringContainsString('<input type="password"', $content);
+        $this->assertStringContainsString('id="fos_user_registration_form_plainPassword_first" name="fos_user_registration_form[plainPassword][first]" required="required"', $content);
+        $this->assertStringContainsString('id="fos_user_registration_form_plainPassword_second" name="fos_user_registration_form[plainPassword][second]" required="required"', $content);
+        $this->assertStringContainsString('<input type="hidden"', $content);
+        $this->assertStringContainsString('id="fos_user_registration_form__token" name="fos_user_registration_form[_token]"', $content);
+        $this->assertStringContainsString('>Register</button>', $content);
     }
 
     public function testRegisterAccount()
@@ -85,8 +85,8 @@ class SecurityControllerTest extends ControllerBaseTest
                 'email' => 'test@example.com',
                 'username' => 'example',
                 'plainPassword' => [
-                    'first' => 'test123',
-                    'second' => 'test123',
+                    'first' => 'test1234',
+                    'second' => 'test1234',
                 ],
             ]
         ]);
@@ -96,8 +96,71 @@ class SecurityControllerTest extends ControllerBaseTest
         $this->assertTrue($client->getResponse()->isSuccessful());
 
         $content = $client->getResponse()->getContent();
-        $this->assertContains('<title>Kimai - Time Tracking</title>', $content);
-        $this->assertContains('<p>Congrats example, your account is now activated.</p>', $content);
-        $this->assertContains('<a href="/en/homepage">', $content);
+        $this->assertStringContainsString('<title>Kimai – Time Tracking</title>', $content);
+        $this->assertStringContainsString('<p>Congrats example, your account is now activated.</p>', $content);
+        $this->assertStringContainsString('<a href="/en/homepage">', $content);
+    }
+
+    /**
+     * @dataProvider getValidationTestData
+     */
+    public function testRegisterActionWithValidationProblems(array $formData, array $validationFields)
+    {
+        $client = self::createClient();
+
+        $this->assertHasValidationError($client, '/register/', 'form[name=fos_user_registration_form]', $formData, $validationFields);
+    }
+
+    public function getValidationTestData()
+    {
+        return [
+            [
+                // invalid fields: username, password_second, email
+                [
+                    'fos_user_registration_form' => [
+                        'username' => '',
+                        'plainPassword' => ['first' => 'sdfsdf123'],
+                        'email' => '',
+                    ]
+                ],
+                [
+                    '#fos_user_registration_form_username',
+                    '#fos_user_registration_form_username',
+                    '#fos_user_registration_form_plainPassword_first',
+                    '#fos_user_registration_form_email',
+                    '#fos_user_registration_form_email',
+                ]
+            ],
+            // invalid fields: username, password, email
+            [
+                [
+                    'fos_user_registration_form' => [
+                        'username' => 'x',
+                        'plainPassword' => ['first' => 'sdfsdf123', 'second' => 'sdfxxxxxxx'],
+                        'email' => 'ydfbvsdfgs',
+                    ]
+                ],
+                [
+                    '#fos_user_registration_form_username',
+                    '#fos_user_registration_form_username',
+                    '#fos_user_registration_form_plainPassword_first',
+                    '#fos_user_registration_form_email',
+                    '#fos_user_registration_form_email',
+                ]
+            ],
+            // invalid fields: password (too short)
+            [
+                [
+                    'fos_user_registration_form' => [
+                        'username' => 'test123',
+                        'plainPassword' => ['first' => 'test123', 'second' => 'test123'],
+                        'email' => 'ydfbvsdfgs@example.com',
+                    ]
+                ],
+                [
+                    '#fos_user_registration_form_plainPassword_first',
+                ]
+            ],
+        ];
     }
 }

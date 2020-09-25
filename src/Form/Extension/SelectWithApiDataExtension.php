@@ -34,12 +34,9 @@ class SelectWithApiDataExtension extends AbstractTypeExtension
         $this->router = $router;
     }
 
-    /**
-     * @return string
-     */
-    public function getExtendedType()
+    public static function getExtendedTypes(): iterable
     {
-        return EntityType::class;
+        return [EntityType::class];
     }
 
     /**
@@ -55,7 +52,7 @@ class SelectWithApiDataExtension extends AbstractTypeExtension
 
         $apiData = $options['api_data'];
 
-        if (!is_array($apiData)) {
+        if (!\is_array($apiData)) {
             throw new \InvalidArgumentException('Option "api_data" must be an array for form "' . $form->getName() . '"');
         }
 
@@ -80,6 +77,12 @@ class SelectWithApiDataExtension extends AbstractTypeExtension
             'data-related-select' => $formPrefix . $apiData['select'],
             'data-api-url' => $this->router->generate($apiData['route'], $apiData['route_params']),
         ]);
+
+        if (isset($apiData['empty_route_params'])) {
+            $view->vars['attr'] = array_merge($view->vars['attr'], [
+                'data-empty-url' => $this->router->generate($apiData['route'], $apiData['empty_route_params']),
+            ]);
+        }
     }
 
     /**
@@ -89,6 +92,5 @@ class SelectWithApiDataExtension extends AbstractTypeExtension
     {
         $resolver->setDefined(['api_data']);
         $resolver->setAllowedTypes('api_data', 'array');
-        //$resolver->setDefault('api_data', []);
     }
 }

@@ -9,6 +9,7 @@
 
 namespace App\DependencyInjection\Compiler;
 
+use App\Configuration\ThemeConfiguration;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -24,24 +25,28 @@ class TwigContextCompilerPass implements CompilerPassInterface
     public function process(ContainerBuilder $container)
     {
         $twig = $container->getDefinition('twig');
-        $theme = $container->getParameter('kimai.theme');
-        $durationOnly = $container->getParameter('kimai.timesheet.duration_only');
 
-        $twig->addMethodCall('addGlobal', ['kimai_context', array_merge($theme, [
-            'active_warning' => $container->getParameter('kimai.timesheet.active_entries.soft_limit')
-        ])]);
-        $twig->addMethodCall('addGlobal', ['duration_only', $durationOnly]);
+        $theme = $container->getDefinition(ThemeConfiguration::class);
+        $twig->addMethodCall('addGlobal', ['kimai_context', $theme]);
 
-        if ($container->hasDefinition('twig.loader.native_filesystem')) {
-            $definition = $container->getDefinition('twig.loader.native_filesystem');
+        $saml = $container->getParameter('kimai.saml');
+        $twig->addMethodCall('addGlobal', ['saml', $saml]);
 
-            $path = dirname(dirname(dirname(__DIR__))) . DIRECTORY_SEPARATOR;
-            foreach ($container->getParameter('kimai.invoice.documents') as $invoicePath) {
-                if (!is_dir($path . $invoicePath)) {
-                    continue;
-                }
-                $definition->addMethodCall('addPath', [$path . $invoicePath, 'invoice']);
+        $definition = $container->getDefinition('twig.loader.native_filesystem');
+
+        $path = \dirname(\dirname(\dirname(__DIR__))) . DIRECTORY_SEPARATOR;
+        foreach ($container->getParameter('kimai.invoice.documents') as $invoicePath) {
+            if (!is_dir($path . $invoicePath)) {
+                continue;
             }
+            $definition->addMethodCall('addPath', [$path . $invoicePath, 'invoice']);
+        }
+
+        foreach ($container->getParameter('kimai.export.documents') as $exportPath) {
+            if (!is_dir($path . $exportPath)) {
+                continue;
+            }
+            $definition->addMethodCall('addPath', [$path . $exportPath, 'export']);
         }
     }
 }

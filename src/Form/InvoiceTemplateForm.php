@@ -13,6 +13,8 @@ use App\Entity\InvoiceTemplate;
 use App\Form\Type\InvoiceCalculatorType;
 use App\Form\Type\InvoiceNumberGeneratorType;
 use App\Form\Type\InvoiceRendererType;
+use App\Form\Type\LanguageType;
+use App\Form\Type\YesNoType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
@@ -40,12 +42,24 @@ class InvoiceTemplateForm extends AbstractType
             ->add('company', TextType::class, [
                 'label' => 'label.company',
             ])
+            ->add('vatId', TextType::class, [
+                'label' => 'label.vat_id',
+                'required' => false,
+            ])
             ->add('address', TextareaType::class, [
                 'label' => 'label.address',
                 'required' => false,
             ])
+            ->add('contact', TextareaType::class, [
+                'label' => 'label.contact',
+                'required' => false,
+            ])
             ->add('paymentTerms', TextareaType::class, [
                 'label' => 'label.payment_terms',
+                'required' => false,
+            ])
+            ->add('paymentDetails', TextareaType::class, [
+                'label' => 'label.invoice_bank_account',
                 'required' => false,
             ])
             ->add('dueDays', TextType::class, [
@@ -58,6 +72,12 @@ class InvoiceTemplateForm extends AbstractType
             ->add('renderer', InvoiceRendererType::class, [])
             ->add('calculator', InvoiceCalculatorType::class, [])
             ->add('numberGenerator', InvoiceNumberGeneratorType::class, [])
+            ->add('language', LanguageType::class, [
+                'required' => false,
+            ])
+            ->add('decimalDuration', YesNoType::class, [
+                'label' => 'label.decimalDuration'
+            ])
         ;
     }
 
@@ -71,6 +91,11 @@ class InvoiceTemplateForm extends AbstractType
             'csrf_protection' => true,
             'csrf_field_name' => '_token',
             'csrf_token_id' => 'admin_invoice_template',
+            'attr' => [
+                'data-form-event' => 'kimai.invoiceTemplateUpdate',
+                'data-msg-success' => 'action.update.success',
+                'data-msg-error' => 'action.update.error',
+            ],
         ]);
     }
 }

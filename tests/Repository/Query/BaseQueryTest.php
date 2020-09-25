@@ -9,9 +9,21 @@
 
 namespace App\Tests\Repository\Query;
 
-use App\Entity\User;
+use App\Entity\Activity;
+use App\Entity\Customer;
+use App\Entity\Project;
+use App\Entity\Team;
+use App\Repository\Query\ActivityQuery;
 use App\Repository\Query\BaseQuery;
+use App\Repository\Query\ProjectQuery;
+use App\Repository\Query\TimesheetQuery;
+use App\Utils\SearchTerm;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Form\DataMapperInterface;
+use Symfony\Component\Form\FormBuilder;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormFactoryInterface;
 
 /**
  * @covers \App\Repository\Query\BaseQuery
@@ -21,82 +33,246 @@ class BaseQueryTest extends TestCase
     public function testQuery()
     {
         $this->assertBaseQuery(new BaseQuery());
+        $this->assertResetByFormError(new BaseQuery());
     }
 
-    protected function assertBaseQuery(BaseQuery $sut)
+    /**
+     * @expectedDeprecation BaseQuery::getResultType() is deprecated and will be removed with 2.0
+     * @group legacy
+     */
+    public function testDeprecations()
     {
-        $this->assertResultType($sut);
-        $this->assertHiddenEntity($sut);
+        $sut = new BaseQuery();
+        $sut->getResultType();
+    }
+
+    protected function assertResetByFormError(BaseQuery $sut, $orderBy = 'id', $order = 'ASC')
+    {
+        $sut->setOrder('ASK');
+        $sut->setOrderBy('foo');
+        $sut->setPage(99);
+        $sut->setPageSize(99);
+        $sut->setSearchTerm(new SearchTerm('sdf'));
+
+        $this->resetByFormError($sut, ['order', 'orderBy', 'page', 'pageSize', 'searchTerm']);
+
+        self::assertEquals(1, $sut->getPage());
+        self::assertEquals(50, $sut->getPageSize());
+        self::assertEquals($order, $sut->getOrder());
+        self::assertEquals($orderBy, $sut->getOrderBy());
+        self::assertNull($sut->getSearchTerm());
+    }
+
+    protected function assertBaseQuery(BaseQuery $sut, $orderBy = 'id')
+    {
         $this->assertPage($sut);
         $this->assertPageSize($sut);
-        $this->assertOrderBy($sut);
+        $this->assertOrderBy($sut, $orderBy);
         $this->assertOrder($sut);
+        $this->assertTeams($sut);
     }
 
-    protected function assertResultType(BaseQuery $sut)
+    private function getFormBuilder(string $name)
     {
-        $this->assertEquals(BaseQuery::RESULT_TYPE_PAGER, $sut->getResultType());
+        return new FormBuilder($name, null, new EventDispatcher(), $this->createMock(FormFactoryInterface::class), []);
+    }
 
-        $sut->setResultType(BaseQuery::RESULT_TYPE_QUERYBUILDER);
-        $this->assertEquals(BaseQuery::RESULT_TYPE_QUERYBUILDER, $sut->getResultType());
+    protected function resetByFormError(BaseQuery $sut, array $invalidFields)
+    {
+        $formBuilder = $this->getFormBuilder('form');
+        $formBuilder->setCompound(true);
+        $formBuilder->setDataMapper($this->createMock(DataMapperInterface::class));
 
-        $sut->setResultType(BaseQuery::RESULT_TYPE_OBJECTS);
-        $this->assertEquals(BaseQuery::RESULT_TYPE_OBJECTS, $sut->getResultType());
+        $form = $formBuilder->getForm();
 
-        try {
-            $sut->setResultType('foo-bar');
-        } catch (\Exception $exception) {
-            $this->assertInstanceOf(\InvalidArgumentException::class, $exception);
-            $this->assertEquals('Unsupported query result type', $exception->getMessage());
+        foreach ($invalidFields as $fieldName) {
+            $form->add($this->getFormBuilder($fieldName)->getForm());
         }
+
+        $form->submit([]);
+
+        foreach ($invalidFields as $fieldName) {
+            $form->get($fieldName)->addError(new FormError('Failed'));
+        }
+
+        $formErrors = $form->getErrors(true);
+
+        $sut->resetByFormError($formErrors);
     }
 
-    protected function assertHiddenEntity(BaseQuery $sut)
+    protected function assertTeams(BaseQuery $sut)
     {
-        $this->assertNull($sut->getHiddenEntity());
+        self::assertEmpty($sut->getTeams());
 
-        $actual = new User();
-        $actual->setUsername('foo-bar');
+        self::assertInstanceOf(BaseQuery::class, $sut->addTeam(new Team()));
+        self::assertEquals(1, \count($sut->getTeams()));
 
-        $sut->setHiddenEntity($actual);
-        $this->assertEquals($actual, $sut->getHiddenEntity());
+        $sut->setTeams(null);
+        self::assertEmpty($sut->getTeams());
+        $sut->setTeams([]);
+        self::assertEmpty($sut->getTeams());
+
+        $team = new Team();
+        self::assertInstanceOf(BaseQuery::class, $sut->setTeams([$team]));
+        self::assertEquals(1, \count($sut->getTeams()));
+        self::assertSame($team, $sut->getTeams()[0]);
     }
 
     protected function assertPage(BaseQuery $sut)
     {
-        $this->assertEquals(BaseQuery::DEFAULT_PAGE, $sut->getPage());
+        self::assertEquals(BaseQuery::DEFAULT_PAGE, $sut->getPage());
 
         $sut->setPage(42);
-        $this->assertEquals(42, $sut->getPage());
+        self::assertEquals(42, $sut->getPage());
     }
 
     protected function assertPageSize(BaseQuery $sut)
     {
-        $this->assertEquals(BaseQuery::DEFAULT_PAGESIZE, $sut->getPageSize());
+        self::assertEquals(BaseQuery::DEFAULT_PAGESIZE, $sut->getPageSize());
 
         $sut->setPageSize(100);
-        $this->assertEquals(100, $sut->getPageSize());
+        self::assertEquals(100, $sut->getPageSize());
     }
 
     protected function assertOrderBy(BaseQuery $sut, $column = 'id')
     {
-        $this->assertEquals($column, $sut->getOrderBy());
+        self::assertEquals($column, $sut->getOrderBy());
 
         $sut->setOrderBy('foo');
-        $this->assertEquals('foo', $sut->getOrderBy());
+        self::assertEquals('foo', $sut->getOrderBy());
     }
 
     protected function assertOrder(BaseQuery $sut, $order = BaseQuery::ORDER_ASC)
     {
-        $this->assertEquals($order, $sut->getOrder());
+        self::assertEquals($order, $sut->getOrder());
 
         $sut->setOrder('foo');
-        $this->assertEquals($order, $sut->getOrder());
+        self::assertEquals($order, $sut->getOrder());
 
         $sut->setOrder(BaseQuery::ORDER_ASC);
-        $this->assertEquals(BaseQuery::ORDER_ASC, $sut->getOrder());
+        self::assertEquals(BaseQuery::ORDER_ASC, $sut->getOrder());
 
         $sut->setOrder(BaseQuery::ORDER_DESC);
-        $this->assertEquals(BaseQuery::ORDER_DESC, $sut->getOrder());
+        self::assertEquals(BaseQuery::ORDER_DESC, $sut->getOrder());
+    }
+
+    protected function assertSearchTerm(BaseQuery $sut)
+    {
+        self::assertNull($sut->getSearchTerm());
+
+        $sut->setSearchTerm(null);
+        self::assertNull($sut->getSearchTerm());
+
+        $term = new SearchTerm('foo bar');
+        $sut->setSearchTerm($term);
+
+        self::assertNotNull($sut->getSearchTerm());
+        self::assertEquals('foo bar', $term->getOriginalSearch());
+        self::assertSame($term, $sut->getSearchTerm());
+    }
+
+    protected function assertActivity(TimesheetQuery $sut)
+    {
+        $this->assertNull($sut->getActivity());
+        $this->assertEquals([], $sut->getActivities());
+        $this->assertFalse($sut->hasActivities());
+
+        $expected = new Activity();
+        $expected->setName('foo-bar');
+
+        $sut->setActivity($expected);
+        $this->assertEquals($expected, $sut->getActivity());
+
+        $sut->setActivities([]);
+        $this->assertEquals([], $sut->getActivities());
+
+        $sut->addActivity($expected);
+        $this->assertEquals([$expected], $sut->getActivities());
+        $this->assertTrue($sut->hasActivities());
+
+        $expected2 = new Activity();
+        $expected2->setName('foo-bar2');
+
+        $sut->addActivity($expected2);
+        $this->assertEquals([$expected, $expected2], $sut->getActivities());
+
+        $sut->setActivity(null);
+        $this->assertNull($sut->getActivity());
+        $this->assertFalse($sut->hasActivities());
+
+        // make sure int is allowed as well
+        $sut->setActivities([99]);
+        $this->assertEquals(99, $sut->getActivity());
+        $this->assertEquals([99], $sut->getActivities());
+    }
+
+    protected function assertCustomer(ProjectQuery $sut)
+    {
+        $this->assertNull($sut->getCustomer());
+        $this->assertEquals([], $sut->getCustomers());
+        $this->assertFalse($sut->hasCustomers());
+
+        $expected = new Customer();
+        $expected->setName('foo-bar');
+
+        $sut->setCustomer($expected);
+        $this->assertEquals($expected, $sut->getCustomer());
+
+        $sut->setCustomers([]);
+        $this->assertEquals([], $sut->getCustomers());
+
+        $sut->addCustomer($expected);
+        $this->assertEquals([$expected], $sut->getCustomers());
+        $this->assertTrue($sut->hasCustomers());
+
+        $expected2 = new Customer();
+        $expected2->setName('foo-bar2');
+
+        $sut->addCustomer($expected2);
+        $this->assertEquals([$expected, $expected2], $sut->getCustomers());
+
+        $sut->setCustomer(null);
+        $this->assertNull($sut->getCustomer());
+        $this->assertFalse($sut->hasCustomers());
+
+        // make sure int is allowed as well
+        $sut->setCustomers([99]);
+        $this->assertEquals(99, $sut->getCustomer());
+        $this->assertEquals([99], $sut->getCustomers());
+    }
+
+    protected function assertProject(ActivityQuery $sut)
+    {
+        $this->assertNull($sut->getProject());
+        $this->assertEquals([], $sut->getProjects());
+        $this->assertFalse($sut->hasProjects());
+
+        $expected = new Project();
+        $expected->setName('foo-bar');
+
+        $sut->setProject($expected);
+        $this->assertEquals($expected, $sut->getProject());
+
+        $sut->setProjects([]);
+        $this->assertEquals([], $sut->getProjects());
+
+        $sut->addProject($expected);
+        $this->assertEquals([$expected], $sut->getProjects());
+        $this->assertTrue($sut->hasProjects());
+
+        $expected2 = new Project();
+        $expected2->setName('foo-bar2');
+
+        $sut->addProject($expected2);
+        $this->assertEquals([$expected, $expected2], $sut->getProjects());
+
+        $sut->setProject(null);
+        $this->assertNull($sut->getProject());
+        $this->assertFalse($sut->hasProjects());
+
+        // make sure int is allowed as well
+        $sut->setProjects([99]);
+        $this->assertEquals(99, $sut->getProject());
+        $this->assertEquals([99], $sut->getProjects());
     }
 }

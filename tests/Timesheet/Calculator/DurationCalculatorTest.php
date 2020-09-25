@@ -10,11 +10,13 @@
 namespace App\Tests\Timesheet\Calculator;
 
 use App\Entity\Timesheet;
+use App\Tests\Mocks\RoundingServiceFactory;
 use App\Timesheet\Calculator\DurationCalculator;
 use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \App\Timesheet\Calculator\DurationCalculator
+ * @covers \App\Timesheet\RoundingService
  */
 class DurationCalculatorTest extends TestCase
 {
@@ -24,7 +26,7 @@ class DurationCalculatorTest extends TestCase
         $record->setBegin(new \DateTime());
         $this->assertEquals(0, $record->getDuration());
 
-        $sut = new DurationCalculator([]);
+        $sut = new DurationCalculator((new RoundingServiceFactory($this))->create());
         $sut->calculate($record);
         $this->assertEquals(0, $record->getDuration());
     }
@@ -39,7 +41,7 @@ class DurationCalculatorTest extends TestCase
         $record->setEnd($end);
         $this->assertEquals(0, $record->getDuration());
 
-        $sut = new DurationCalculator($rules);
+        $sut = new DurationCalculator((new RoundingServiceFactory($this))->create($rules));
         $sut->calculate($record);
         $this->assertEquals($expectedDuration, $record->getDuration());
     }
@@ -52,7 +54,7 @@ class DurationCalculatorTest extends TestCase
 
         return [
             [
-                [],
+                null,
                 $start,
                 (clone $start)->setTimestamp($start->getTimestamp() + 1837),
                 1837
@@ -60,10 +62,11 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 15,
                         'end' => 15,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 17, 35),
@@ -73,10 +76,11 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 17, 35),
@@ -86,10 +90,11 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 1,
                         'end' => 1,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 17, 35),
@@ -99,10 +104,11 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 30,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 10, 51),
@@ -112,16 +118,18 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 15,
                         'end' => 0,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
-                    'weekdays' => [
-                        'days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                    'foo' => [
+                        'days' => 'monday,tuesday,wednesday,thursday,friday,saturday,sunday',
                         'begin' => 0,
                         'end' => 1,
                         'duration' => 30,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 27, 35), // 12:15
@@ -131,16 +139,18 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 15,
                         'end' => 0,
                         'duration' => 30,
+                        'mode' => 'default',
                     ],
-                    'weekdays' => [
-                        'days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                    'foo' => [
+                        'days' => 'monday,tuesday,wednesday,thursday,friday,saturday,sunday',
                         'begin' => 0,
                         'end' => 1,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 27, 35), // 12:15
@@ -150,16 +160,18 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 1,
+                        'mode' => 'default',
                     ],
-                    'weekdays' => [
-                        'days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                    'foo' => [
+                        'days' => 'monday,tuesday,wednesday,thursday,friday,saturday,sunday',
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 1,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 27, 35), // no diff, to test ...
@@ -169,16 +181,18 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 1,
                         'end' => 1,
                         'duration' => 1,
+                        'mode' => 'default',
                     ],
-                    'weekdays' => [
-                        'days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                    'foo' => [
+                        'days' => 'monday,tuesday,wednesday,thursday,friday,saturday,sunday',
                         'begin' => 1,
                         'end' => 1,
                         'duration' => 1,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 27, 00), // no diff, to test ...
@@ -188,16 +202,18 @@ class DurationCalculatorTest extends TestCase
             [
                 [
                     'default' => [
-                        'days' => [$day],
+                        'days' => $day,
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
-                    'weekdays' => [
-                        'days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+                    'foo' => [
+                        'days' => 'monday,tuesday,wednesday,thursday,friday,saturday,sunday',
                         'begin' => 0,
                         'end' => 0,
                         'duration' => 0,
+                        'mode' => 'default',
                     ],
                 ],
                 (clone $start)->setTime(12, 27, 35), // no diff, to test ...

@@ -27,8 +27,8 @@ class DashboardSubscriberTest extends TestCase
     public function testGetSubscribedEvents()
     {
         $events = DashboardSubscriber::getSubscribedEvents();
-        $this->assertArrayHasKey(DashboardEvent::DASHBOARD, $events);
-        $methodName = $events[DashboardEvent::DASHBOARD][0];
+        $this->assertArrayHasKey(DashboardEvent::class, $events);
+        $methodName = $events[DashboardEvent::class][0];
         $this->assertTrue(method_exists(DashboardSubscriber::class, $methodName));
     }
 
@@ -37,9 +37,9 @@ class DashboardSubscriberTest extends TestCase
         $sut = $this->getSubscriber(false, 13, 28, 37, 5);
         $event = new DashboardEvent(new User());
 
-        $this->assertEquals(0, count($event->getSections()));
+        $this->assertEquals(0, \count($event->getSections()));
         $sut->onDashboardEvent($event);
-        $this->assertEquals(0, count($event->getSections()));
+        $this->assertEquals(0, \count($event->getSections()));
     }
 
     public function testWithAdminUser()
@@ -47,14 +47,14 @@ class DashboardSubscriberTest extends TestCase
         $sut = $this->getSubscriber(true, 13, 28, 37, 5);
         $event = new DashboardEvent(new User());
 
-        $this->assertEquals(0, count($event->getSections()));
+        $this->assertEquals(0, \count($event->getSections()));
         $sut->onDashboardEvent($event);
 
         $sections = $event->getSections();
         $widgets = $sections[0]->getWidgets();
 
-        $this->assertEquals(1, count($sections));
-        $this->assertEquals(4, count($widgets));
+        $this->assertEquals(1, \count($sections));
+        $this->assertEquals(4, \count($widgets));
 
         $this->assertEquals('stats.userTotal', $widgets[0]->getTitle());
         $this->assertEquals(13, $widgets[0]->getData());
@@ -75,16 +75,16 @@ class DashboardSubscriberTest extends TestCase
         $authMock->method('isGranted')->willReturn($isAdmin);
 
         $userMock = $this->getMockBuilder(UserRepository::class)->disableOriginalConstructor()->getMock();
-        $userMock->method('countUser')->willReturn($userCount);
+        $userMock->method('countUsersForQuery')->willReturn($userCount);
 
         $projectMock = $this->getMockBuilder(ProjectRepository::class)->disableOriginalConstructor()->getMock();
-        $projectMock->method('countProject')->willReturn($projectCount);
+        $projectMock->method('countProjectsForQuery')->willReturn($projectCount);
 
         $activityMock = $this->getMockBuilder(ActivityRepository::class)->disableOriginalConstructor()->getMock();
-        $activityMock->method('countActivity')->willReturn($activityCount);
+        $activityMock->method('countActivitiesForQuery')->willReturn($activityCount);
 
         $customerMock = $this->getMockBuilder(CustomerRepository::class)->disableOriginalConstructor()->getMock();
-        $customerMock->method('countCustomer')->willReturn($customerCount);
+        $customerMock->method('countCustomersForQuery')->willReturn($customerCount);
 
         return new DashboardSubscriber($authMock, $userMock, $activityMock, $projectMock, $customerMock);
     }

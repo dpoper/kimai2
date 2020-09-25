@@ -11,6 +11,7 @@ namespace App\Form\Type;
 
 use App\Entity\Customer;
 use App\Repository\CustomerRepository;
+use App\Repository\Query\CustomerFormTypeQuery;
 use App\Repository\Query\ProjectQuery;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
@@ -28,23 +29,60 @@ class CustomerType extends AbstractType
     public function configureOptions(OptionsResolver $resolver)
     {
         $resolver->setDefaults([
+            // documentation is for NelmioApiDocBundle
+            'documentation' => [
+                'type' => 'integer',
+                'description' => 'Customer ID',
+            ],
             'label' => 'label.customer',
             'class' => Customer::class,
             'choice_label' => 'name',
-            'query_builder' => function (CustomerRepository $repo) {
-                return $repo->builderForEntityType(null);
-            },
+            'query_builder_for_user' => true,
             'project_enabled' => false,
+            'project_select' => 'project',
+            'start_date_param' => '%begin%',
+            'end_date_param' => '%end%',
+            'ignore_date' => false,
             'project_visibility' => ProjectQuery::SHOW_VISIBLE,
-            //'attr' => ['class' => 'selectpicker', 'data-size' => 10, 'data-live-search' => true, 'data-width' => '100%']
         ]);
 
+        $resolver->setDefault('query_builder', function (Options $options) {
+            return function (CustomerRepository $repo) use ($options) {
+                $query = new CustomerFormTypeQuery();
+                if (true === $options['query_builder_for_user']) {
+                    $query->setUser($options['user']);
+                }
+
+                return $repo->getQueryBuilderForFormType($query);
+            };
+        });
+
         $resolver->setDefault('api_data', function (Options $options) {
-            if (true === $options['project_enabled']) {
+            if (false !== $options['project_enabled']) {
+                $name = \is_string($options['project_enabled']) ? $options['project_enabled'] : 'customer';
+                $routeParams = [$name => '%' . $name . '%', 'visible' => $options['project_visibility']];
+                $emptyRouteParams = ['visible' => $options['project_visibility']];
+
+                if (!$options['ignore_date']) {
+                    if (!empty($options['start_date_param'])) {
+                        $routeParams['start'] = $options['start_date_param'];
+                        $emptyRouteParams['start'] = $options['start_date_param'];
+                    }
+
+                    if (!empty($options['end_date_param'])) {
+                        $routeParams['end'] = $options['end_date_param'];
+                        $emptyRouteParams['end'] = $options['end_date_param'];
+                    }
+                } else {
+                    $routeParams['ignoreDates'] = 1;
+                    $emptyRouteParams['ignoreDates'] = 1;
+                }
+
                 return [
-                    'select' => 'project',
+                    'select' => $options['project_select'],
                     'route' => 'get_projects',
-                    'route_params' => ['customer' => '-s-', 'orderBy' => 'name', 'visible' => $options['project_visibility']],
+                    'route_params' => $routeParams,
+                    'empty_route_params' => $emptyRouteParams,
                 ];
             }
 

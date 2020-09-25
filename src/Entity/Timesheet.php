@@ -9,176 +9,391 @@
 
 namespace App\Entity;
 
+use App\Export\ExportItemInterface;
+use App\Validator\Constraints as Constraints;
+use DateTime;
+use DateTimeZone;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Gedmo\Mapping\Annotation as Gedmo;
+use JMS\Serializer\Annotation as Serializer;
+use Swagger\Annotations as SWG;
 use Symfony\Component\Validator\Constraints as Assert;
-use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
- * Timesheet entity.
- *
- * @ORM\Table(
- *     name="timesheet",
+ * @ORM\Table(name="kimai2_timesheet",
  *     indexes={
  *          @ORM\Index(columns={"user"}),
- *          @ORM\Index(columns={"activity_id"})
+ *          @ORM\Index(columns={"activity_id"}),
+ *          @ORM\Index(columns={"user","start_time"}),
+ *          @ORM\Index(columns={"start_time"}),
+ *          @ORM\Index(columns={"start_time","end_time"}),
+ *          @ORM\Index(columns={"start_time","end_time","user"}),
  *     }
  * )
  * @ORM\Entity(repositoryClass="App\Repository\TimesheetRepository")
  * @ORM\HasLifecycleCallbacks()
- * @Assert\Callback("validate")
+ * @Constraints\Timesheet
+ *
+ * @Serializer\ExclusionPolicy("all")
+ * @Serializer\VirtualProperty(
+ *      "ActivityAsId",
+ *      exp="object.getActivity() === null ? null : object.getActivity().getId()",
+ *      options={
+ *          @Serializer\SerializedName("activity"),
+ *          @Serializer\Type(name="integer"),
+ *          @Serializer\Groups({"Not_Expanded"})
+ *      }
+ * )
+ * @Serializer\VirtualProperty(
+ *      "ProjectAsId",
+ *      exp="object.getProject() === null ? null : object.getProject().getId()",
+ *      options={
+ *          @Serializer\SerializedName("project"),
+ *          @Serializer\Type(name="integer"),
+ *          @Serializer\Groups({"Not_Expanded"})
+ *      }
+ * )
+ * @Serializer\VirtualProperty(
+ *      "UserAsId",
+ *      exp="object.getUser().getId()",
+ *      options={
+ *          @Serializer\SerializedName("user"),
+ *          @Serializer\Type(name="integer"),
+ *          @Serializer\Groups({"Default"})
+ *      }
+ * )
+ * @Serializer\VirtualProperty(
+ *      "TagsAsArray",
+ *      exp="object.getTagsAsArray()",
+ *      options={
+ *          @Serializer\SerializedName("tags"),
+ *          @Serializer\Type(name="array<string>"),
+ *          @Serializer\Groups({"Default"})
+ *      }
+ * )
  */
-class Timesheet
+class Timesheet implements EntityWithMetaFields, ExportItemInterface
 {
     /**
-     * @var int
+     * Category: Normal work-time (default category)
+     */
+    public const WORK = 'work';
+    /**
+     * Category: Holiday
+     */
+    public const HOLIDAY = 'holiday';
+    /**
+     * Category: Sickness
+     */
+    public const SICKNESS = 'sickness';
+    /**
+     * Category: Parental leave
+     */
+    public const PARENTAL = 'parental';
+    /**
+     * Category: Overtime reduction
+     */
+    public const OVERTIME = 'overtime';
+
+    /**
+     * @var int|null
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
      *
      * @ORM\Column(name="id", type="integer")
      * @ORM\Id
      * @ORM\GeneratedValue(strategy="IDENTITY")
      */
     private $id;
-
     /**
-     * @var \DateTime
+     * @var DateTime
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
+     * @Serializer\Type(name="DateTime")
+     * @Serializer\Accessor(getter="getBegin")
+     *
+     * Attention: Accessor MUST be used, otherwise date will be serialized in UTC.
      *
      * @ORM\Column(name="start_time", type="datetime", nullable=false)
      * @Assert\NotNull()
      */
     private $begin;
-
     /**
-     * @var \DateTime
+     * @var DateTime
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
+     * @Serializer\Type(name="DateTime")
+     * @Serializer\Accessor(getter="getEnd")
+     *
+     * Attention: Accessor MUST be used, otherwise date will be serialized in UTC.
      *
      * @ORM\Column(name="end_time", type="datetime", nullable=true)
      */
     private $end;
-
+    /**
+     * @var string
+     * @internal for storing the timezone of "begin" and "end" date
+     *
+     * @ORM\Column(name="timezone", type="string", length=64, nullable=false)
+     */
+    private $timezone;
+    /**
+     * @var bool
+     * @internal for storing the localized state of dates (see $timezone)
+     */
+    private $localized = false;
     /**
      * @var int
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
      *
      * @ORM\Column(name="duration", type="integer", nullable=true)
      * @Assert\GreaterThanOrEqual(0)
      */
     private $duration = 0;
-
     /**
      * @var User
      *
      * @ORM\ManyToOne(targetEntity="App\Entity\User")
-     * @ORM\JoinColumn(name="user", referencedColumnName="id", onDelete="CASCADE", nullable=false)
+     * @ORM\JoinColumn(name="`user`", referencedColumnName="id", onDelete="CASCADE", nullable=false)
      * @Assert\NotNull()
      */
     private $user;
-
     /**
+     * Activity
+     *
      * @var Activity
      *
-     * @ORM\ManyToOne(targetEntity="App\Entity\Activity", inversedBy="timesheets")
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Subresource", "Expanded"})
+     * @SWG\Property(ref="#/definitions/ActivityExpanded")
+     *
+     * @ORM\ManyToOne(targetEntity="App\Entity\Activity")
      * @ORM\JoinColumn(onDelete="CASCADE", nullable=false)
      * @Assert\NotNull()
      */
     private $activity;
-
     /**
+     * Project
+     *
      * @var Project
      *
-     * @ORM\ManyToOne(targetEntity="App\Entity\Project", inversedBy="timesheets")
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Subresource", "Expanded"})
+     * @SWG\Property(ref="#/definitions/ProjectExpanded")
+     *
+     * @ORM\ManyToOne(targetEntity="App\Entity\Project")
      * @ORM\JoinColumn(onDelete="CASCADE", nullable=false)
      * @Assert\NotNull()
      */
     private $project;
-
     /**
      * @var string
      *
-     * @ORM\Column(name="description", type="text", length=65535, nullable=true)
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
+     *
+     * @ORM\Column(name="description", type="text", nullable=true)
      */
     private $description;
-
     /**
      * @var float
      *
-     * @ORM\Column(name="rate", type="decimal", precision=10, scale=2, nullable=false)
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
+     *
+     * @ORM\Column(name="rate", type="float", nullable=false)
      * @Assert\GreaterThanOrEqual(0)
      */
     private $rate = 0.00;
-
     /**
-     * @var float
+     * @var float|null
      *
-     * @ORM\Column(name="fixed_rate", type="decimal", precision=10, scale=2, nullable=true)
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Default"})
+     *
+     * @ORM\Column(name="internal_rate", type="float", nullable=true)
+     */
+    private $internalRate;
+    /**
+     * @var float|null
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Entity"})
+     *
+     * @ORM\Column(name="fixed_rate", type="float", nullable=true)
      * @Assert\GreaterThanOrEqual(0)
      */
     private $fixedRate = null;
-
     /**
      * @var float
      *
-     * @ORM\Column(name="hourly_rate", type="decimal", precision=10, scale=2, nullable=true)
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Entity"})
+     *
+     * @ORM\Column(name="hourly_rate", type="float", nullable=true)
      * @Assert\GreaterThanOrEqual(0)
      */
     private $hourlyRate = null;
+    /**
+     * @var bool
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Entity"})
+     *
+     * @ORM\Column(name="exported", type="boolean", nullable=false)
+     * @Assert\NotNull()
+     */
+    private $exported = false;
+    /**
+     * @var bool
+     *
+     * @ORM\Column(name="billable", type="boolean", nullable=false, options={"default": true})
+     * @Assert\NotNull()
+     */
+    private $billable = true;
+    /**
+     * @var string
+     *
+     * @ORM\Column(name="category", type="string", length=10, nullable=false, options={"default": "work"})
+     * @Assert\NotNull()
+     */
+    private $category = self::WORK;
+    /**
+     * @var DateTime|null
+     * @internal used for limiting queries, eg. via API sync
+     *
+     * @Gedmo\Timestampable
+     * @ORM\Column(name="modified_at", type="datetime", nullable=true)
+     */
+    private $modifiedAt;
+    /**
+     * Tags
+     *
+     * @var Tag[]|ArrayCollection
+     *
+     * @ORM\ManyToMany(targetEntity="App\Entity\Tag", inversedBy="timesheets", cascade={"persist"})
+     * @ORM\JoinTable(
+     *  name="kimai2_timesheet_tags",
+     *  joinColumns={
+     *      @ORM\JoinColumn(name="timesheet_id", referencedColumnName="id", onDelete="CASCADE")
+     *  },
+     *  inverseJoinColumns={
+     *      @ORM\JoinColumn(name="tag_id", referencedColumnName="id", onDelete="CASCADE")
+     *  }
+     * )
+     * @Assert\Valid()
+     */
+    private $tags;
+    /**
+     * Meta fields
+     *
+     * All visible meta (custom) fields registered with this timesheet
+     *
+     * @var TimesheetMeta[]|Collection
+     *
+     * @Serializer\Expose()
+     * @Serializer\Groups({"Timesheet"})
+     * @Serializer\Type(name="array<App\Entity\TimesheetMeta>")
+     * @Serializer\SerializedName("metaFields")
+     * @Serializer\Accessor(getter="getVisibleMetaFields")
+     *
+     * @ORM\OneToMany(targetEntity="App\Entity\TimesheetMeta", mappedBy="timesheet", cascade={"persist"})
+     */
+    private $meta;
+
+    public function __construct()
+    {
+        $this->tags = new ArrayCollection();
+        $this->meta = new ArrayCollection();
+    }
 
     /**
-     * Get entry id
+     * Get entry id, returns null for new entities which were not persisted.
      *
-     * @return int
+     * @return int|null
      */
-    public function getId()
+    public function getId(): ?int
     {
         return $this->id;
     }
 
     /**
-     * @return \DateTime
+     * Make sure begin and end date have the correct timezone.
+     * This will be called once for each item after being loaded from the database.
      */
-    public function getBegin()
+    protected function localizeDates()
     {
+        if ($this->localized) {
+            return;
+        }
+
+        if (null !== $this->begin) {
+            $this->begin->setTimeZone(new DateTimeZone($this->timezone));
+        }
+
+        if (null !== $this->end) {
+            $this->end->setTimeZone(new DateTimeZone($this->timezone));
+        }
+
+        $this->localized = true;
+    }
+
+    public function getBegin(): ?DateTime
+    {
+        $this->localizeDates();
+
         return $this->begin;
     }
 
     /**
-     * @param \DateTime $begin
+     * @param DateTime $begin
      * @return Timesheet
      */
-    public function setBegin($begin)
+    public function setBegin(DateTime $begin): Timesheet
     {
         $this->begin = $begin;
+        $this->timezone = $begin->getTimezone()->getName();
 
         return $this;
     }
 
-    /**
-     * @return \DateTime
-     */
-    public function getEnd()
+    public function getEnd(): ?DateTime
     {
+        $this->localizeDates();
+
         return $this->end;
     }
 
     /**
-     * @param \DateTime $end
+     * @param DateTime $end
      * @return Timesheet
      */
-    public function setEnd($end)
+    public function setEnd(?DateTime $end): Timesheet
     {
         $this->end = $end;
 
         if (null === $end) {
             $this->duration = 0;
-            $this->rate = 0;
+            $this->rate = 0.00;
+        } else {
+            $this->timezone = $end->getTimezone()->getName();
         }
 
         return $this;
     }
 
     /**
-     * Set duration
-     *
-     * @param int $duration
+     * @param int|null $duration
      * @return Timesheet
      */
-    public function setDuration($duration)
+    public function setDuration(?int $duration): Timesheet
     {
         $this->duration = $duration;
 
@@ -186,66 +401,48 @@ class Timesheet
     }
 
     /**
-     * Get duration
-     * Do not rely on the results of this method for active records.
+     * Do not rely on the results of this method for running records.
      *
-     * @return int
+     * @return int|null
      */
-    public function getDuration()
+    public function getDuration(): ?int
     {
         return $this->duration;
     }
 
     /**
-     * Set user
-     *
      * @param User $user
      * @return Timesheet
      */
-    public function setUser(User $user)
+    public function setUser(User $user): Timesheet
     {
         $this->user = $user;
 
         return $this;
     }
 
-    /**
-     * Get user
-     *
-     * @return User
-     */
-    public function getUser()
+    public function getUser(): ?User
     {
         return $this->user;
     }
 
     /**
-     * Set activity
-     *
      * @param Activity $activity
      * @return Timesheet
      */
-    public function setActivity($activity)
+    public function setActivity($activity): Timesheet
     {
         $this->activity = $activity;
 
         return $this;
     }
 
-    /**
-     * Get Activity
-     *
-     * @return Activity
-     */
-    public function getActivity()
+    public function getActivity(): ?Activity
     {
         return $this->activity;
     }
 
-    /**
-     * @return Project
-     */
-    public function getProject()
+    public function getProject(): ?Project
     {
         return $this->project;
     }
@@ -254,7 +451,7 @@ class Timesheet
      * @param Project $project
      * @return Timesheet
      */
-    public function setProject(Project $project)
+    public function setProject(Project $project): Timesheet
     {
         $this->project = $project;
 
@@ -262,158 +459,282 @@ class Timesheet
     }
 
     /**
-     * Set description
-     *
      * @param string $description
      * @return Timesheet
      */
-    public function setDescription($description)
+    public function setDescription($description): Timesheet
     {
         $this->description = $description;
 
         return $this;
     }
 
-    /**
-     * Get description
-     *
-     * @return string
-     */
-    public function getDescription()
+    public function getDescription(): ?string
     {
         return $this->description;
     }
 
     /**
-     * Set rate
-     *
      * @param float $rate
      * @return Timesheet
      */
-    public function setRate($rate)
+    public function setRate($rate): Timesheet
     {
         $this->rate = $rate;
 
         return $this;
     }
 
-    /**
-     * Get rate
-     *
-     * @return float
-     */
-    public function getRate()
+    public function getRate(): float
     {
         return $this->rate;
     }
 
+    public function setInternalRate(?float $rate): Timesheet
+    {
+        $this->internalRate = $rate;
+
+        return $this;
+    }
+
+    public function getInternalRate(): ?float
+    {
+        return $this->internalRate;
+    }
+
     /**
-     * @return float
+     * @param Tag $tag
+     * @return Timesheet
      */
+    public function addTag(Tag $tag): Timesheet
+    {
+        if ($this->tags->contains($tag)) {
+            return $this;
+        }
+        $this->tags->add($tag);
+        $tag->addTimesheet($this);
+
+        return $this;
+    }
+
+    /**
+     * @param Tag $tag
+     */
+    public function removeTag(Tag $tag)
+    {
+        if (!$this->tags->contains($tag)) {
+            return;
+        }
+        $this->tags->removeElement($tag);
+        $tag->removeTimesheet($this);
+    }
+
+    /**
+     * @return Collection<Tag>
+     */
+    public function getTags(): Collection
+    {
+        return $this->tags;
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getTagsAsArray(): array
+    {
+        return array_map(
+            function (Tag $element) {
+                return $element->getName();
+            },
+            $this->getTags()->toArray()
+        );
+    }
+
+    /**
+     * @return bool
+     */
+    public function isExported(): bool
+    {
+        return $this->exported;
+    }
+
+    /**
+     * @param bool $exported
+     * @return Timesheet
+     */
+    public function setExported(bool $exported): Timesheet
+    {
+        $this->exported = $exported;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getTimezone(): string
+    {
+        return $this->timezone;
+    }
+
+    /**
+     * BE WARNED: this method should NOT be used.
+     * It was ONLY introduced for the command "kimai:import-v1".
+     *
+     * @internal
+     * @param string $timezone
+     * @return Timesheet
+     */
+    public function setTimezone(string $timezone): Timesheet
+    {
+        $this->timezone = $timezone;
+
+        return $this;
+    }
+
+    /**
+     * This method returns ALWAYS: "timesheet"
+     *
+     * @return string
+     */
+    public function getType(): string
+    {
+        return 'timesheet';
+    }
+
+    public function getCategory(): string
+    {
+        return $this->category;
+    }
+
+    public function setCategory(string $category): Timesheet
+    {
+        $allowed = [self::WORK, self::HOLIDAY, self::SICKNESS, self::PARENTAL, self::OVERTIME];
+
+        if (!\in_array($category, $allowed)) {
+            throw new \InvalidArgumentException(sprintf('Invalid timesheet category "%s" given, expected one of: %s', $category, implode(', ', $allowed)));
+        }
+
+        $this->category = $category;
+
+        return $this;
+    }
+
+    public function isBillable(): bool
+    {
+        return $this->billable;
+    }
+
+    public function setBillable(bool $billable): Timesheet
+    {
+        $this->billable = $billable;
+
+        return $this;
+    }
+
     public function getFixedRate(): ?float
     {
         return $this->fixedRate;
     }
 
-    /**
-     * @param float $fixedRate
-     * @return Timesheet
-     */
-    public function setFixedRate(?float $fixedRate)
+    public function setFixedRate(?float $fixedRate): Timesheet
     {
         $this->fixedRate = $fixedRate;
 
         return $this;
     }
 
-    /**
-     * @return float
-     */
     public function getHourlyRate(): ?float
     {
         return $this->hourlyRate;
     }
 
-    /**
-     * @param float $hourlyRate
-     * @return Timesheet
-     */
-    public function setHourlyRate(?float $hourlyRate)
+    public function setHourlyRate(?float $hourlyRate): Timesheet
     {
         $this->hourlyRate = $hourlyRate;
 
         return $this;
     }
 
-    /**
-     * @param ExecutionContextInterface $context
-     * @param $payload
-     */
-    public function validate(ExecutionContextInterface $context, $payload)
+    public function getModifiedAt(): ?DateTime
     {
-        if (null === ($activity = $this->getActivity())) {
-            $context->buildViolation('A timesheet must have an activity.')
-                ->atPath('activity')
-                ->setTranslationDomain('validators')
-                ->addViolation();
-        }
+        return $this->modifiedAt;
+    }
 
-        if (null === ($project = $this->getProject())) {
-            $context->buildViolation('A timesheet must have a project.')
-                ->atPath('project')
-                ->setTranslationDomain('validators')
-                ->addViolation();
-        }
+    /**
+     * @return Collection|MetaTableTypeInterface[]
+     */
+    public function getMetaFields(): Collection
+    {
+        return $this->meta;
+    }
 
-        if (null !== $activity && null !== $project) {
-            if (null !== $activity->getProject() && $activity->getProject() !== $project) {
-                $context->buildViolation('Project mismatch, project specific activity and timesheet project are different.')
-                    ->atPath('project')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
-            }
-
-            if (null === $this->getEnd() && $activity->getVisible() === false) {
-                $context->buildViolation('Cannot start a disabled activity.')
-                    ->atPath('activity')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
-            }
-
-            if (null === $this->getEnd() && $project->getVisible() === false) {
-                $context->buildViolation('Cannot start a disabled project.')
-                    ->atPath('project')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
-            }
-
-            if (null === $this->getEnd() && $project->getCustomer()->getVisible() === false) {
-                $context->buildViolation('Cannot start a disabled customer.')
-                    ->atPath('customer')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
+    /**
+     * @return MetaTableTypeInterface[]
+     */
+    public function getVisibleMetaFields(): array
+    {
+        $all = [];
+        foreach ($this->meta as $meta) {
+            if ($meta->isVisible()) {
+                $all[] = $meta;
             }
         }
 
-        if (null === $this->getBegin()) {
-            $context->buildViolation('You must submit a begin date.')
-                ->atPath('begin')
-                ->setTranslationDomain('validators')
-                ->addViolation();
-        } else {
-            if (null !== $this->getBegin() && null !== $this->getEnd() && $this->getEnd()->getTimestamp() < $this->getBegin()->getTimestamp()) {
-                $context->buildViolation('End date must not be earlier then start date.')
-                    ->atPath('end')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
-            }
+        return $all;
+    }
 
-            if (time() < $this->getBegin()->getTimestamp()) {
-                $context->buildViolation('The begin date cannot be in the future.')
-                    ->atPath('begin')
-                    ->setTranslationDomain('validators')
-                    ->addViolation();
+    public function getMetaField(string $name): ?MetaTableTypeInterface
+    {
+        foreach ($this->meta as $field) {
+            if (strtolower($field->getName()) === strtolower($name)) {
+                return $field;
             }
+        }
+
+        return null;
+    }
+
+    public function setMetaField(MetaTableTypeInterface $meta): EntityWithMetaFields
+    {
+        if (null === ($current = $this->getMetaField($meta->getName()))) {
+            $meta->setEntity($this);
+            $this->meta->add($meta);
+
+            return $this;
+        }
+
+        $current->merge($meta);
+
+        return $this;
+    }
+
+    public function createCopy(?Timesheet $timesheet = null): Timesheet
+    {
+        if (null === $timesheet) {
+            $timesheet = new Timesheet();
+        }
+
+        $values = get_object_vars($this);
+        foreach ($values as $k => $v) {
+            $timesheet->$k = $v;
+        }
+
+        $timesheet->meta = new ArrayCollection();
+
+        /** @var TimesheetMeta $meta */
+        foreach ($this->meta as $meta) {
+            $timesheet->setMetaField(clone $meta);
+        }
+
+        return $timesheet;
+    }
+
+    public function __clone()
+    {
+        if ($this->id) {
+            $this->id = null;
+            $this->exported = false;
         }
     }
 }

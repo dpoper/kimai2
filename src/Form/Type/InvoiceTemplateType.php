@@ -10,6 +10,7 @@
 namespace App\Form\Type;
 
 use App\Entity\InvoiceTemplate;
+use App\Repository\InvoiceTemplateRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -27,6 +28,10 @@ class InvoiceTemplateType extends AbstractType
         $resolver->setDefaults([
             'label' => 'label.template',
             'class' => InvoiceTemplate::class,
+            'choice_label' => 'name',
+            'query_builder' => function (InvoiceTemplateRepository $repository) {
+                return $repository->getQueryBuilderForFormType();
+            }
         ]);
     }
 

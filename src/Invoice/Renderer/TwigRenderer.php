@@ -10,47 +10,23 @@
 namespace App\Invoice\Renderer;
 
 use App\Entity\InvoiceDocument;
-use App\Invoice\RendererInterface;
-use App\Model\InvoiceModel;
+use App\Invoice\InvoiceModel;
 use Symfony\Component\HttpFoundation\Response;
 
-class TwigRenderer implements RendererInterface
+final class TwigRenderer extends AbstractTwigRenderer
 {
-    /**
-     * @var \Twig_Environment
-     */
-    protected $twig;
-
-    /**
-     * @param \Twig_Environment $twig
-     */
-    public function __construct(\Twig_Environment $twig)
-    {
-        $this->twig = $twig;
-    }
-
-    /**
-     * @param InvoiceDocument $document
-     * @return bool
-     */
     public function supports(InvoiceDocument $document): bool
     {
-        return stripos($document->getFilename(), '.twig') !== false;
+        return stripos($document->getFilename(), '.html.twig') !== false;
     }
 
-    /**
-     * @param InvoiceDocument $document
-     * @param InvoiceModel $model
-     * @return Response
-     */
     public function render(InvoiceDocument $document, InvoiceModel $model): Response
     {
-        $content = $this->twig->render('@invoice/' . basename($document->getFilename()), [
-            'model' => $model
-        ]);
+        $content = $this->renderTwigTemplate($document, $model);
 
         $response = new Response();
         $response->setContent($content);
+        $response->headers->set('Content-Type', 'text/html; charset=UTF-8');
 
         return $response;
     }

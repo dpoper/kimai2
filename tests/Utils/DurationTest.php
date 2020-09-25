@@ -20,6 +20,8 @@ class DurationTest extends TestCase
     public function testFormat()
     {
         $sut = new Duration();
+
+        $this->assertNull($sut->format(null));
         $this->assertEquals('02:38', $sut->format(9494));
         $this->assertEquals('02:38:14', $sut->format(9494, Duration::FORMAT_WITH_SECONDS));
     }
@@ -52,6 +54,7 @@ class DurationTest extends TestCase
 
             [0, '', Duration::FORMAT_NATURAL],
             [0, 0, Duration::FORMAT_NATURAL],
+            [99, '99s', Duration::FORMAT_NATURAL],
             [7200, '2h', Duration::FORMAT_NATURAL],
             [2280, '38m', Duration::FORMAT_NATURAL],
             [9480, '2h38m', Duration::FORMAT_NATURAL],
@@ -63,6 +66,8 @@ class DurationTest extends TestCase
             [48420, '13:27', Duration::FORMAT_COLON],
             [48474, '13:27:54', Duration::FORMAT_COLON],
             [48474, '12:87:54', Duration::FORMAT_COLON],
+            [11257200, '3127:00:00', Duration::FORMAT_COLON],
+            [11257200, '3127:00', Duration::FORMAT_COLON],
         ];
     }
 
@@ -73,20 +78,29 @@ class DurationTest extends TestCase
             ['13', Duration::FORMAT_COLON],
             ['13-13', Duration::FORMAT_COLON],
             ['13.13', Duration::FORMAT_COLON],
-            [1111, 1111, Duration::FORMAT_NATURAL],
+            [1111, Duration::FORMAT_NATURAL],
 
             // invalid modes
             [17, 'foo'],
             [12, ''],
+
+            ['3127::00', Duration::FORMAT_COLON],
+            ['00::', Duration::FORMAT_COLON],
+            ['3127:00:', Duration::FORMAT_COLON],
+            [':3127:00', Duration::FORMAT_COLON],
+            ['::3127', Duration::FORMAT_COLON],
+            ['3127:-01', Duration::FORMAT_COLON],
+            ['-3127:01:17', Duration::FORMAT_COLON],
         ];
     }
 
     /**
      * @dataProvider getParseDurationInvalidData
-     * @expectedException \InvalidArgumentException
      */
     public function testParseDurationThrowsInvalidArgumentException($duration, $mode)
     {
+        $this->expectException(\InvalidArgumentException::class);
+
         $sut = new Duration();
         $sut->parseDuration($duration, $mode);
     }

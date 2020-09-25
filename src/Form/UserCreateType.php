@@ -28,31 +28,36 @@ class UserCreateType extends UserEditType
         $builder
             ->add('username', null, [
                 'label' => 'label.username',
-                'required' => true
+                'required' => true,
+                'attr' => [
+                    'autofocus' => 'autofocus'
+                ],
             ])
             ->add('plainPassword', RepeatedType::class, [
                 'required' => true,
                 'type' => PasswordType::class,
-                'first_options' => ['label' => 'label.password'],
-                'second_options' => ['label' => 'label.password_repeat'],
+                'first_options' => ['label' => 'label.password', 'attr' => ['autocomplete' => 'new-password']],
+                'second_options' => ['label' => 'label.password_repeat', 'attr' => ['autocomplete' => 'new-password']],
             ]);
 
         parent::buildForm($builder, $options);
 
-        $builder->add('create_more', CheckboxType::class, [
-            'label' => 'label.create_more',
-            'required' => false,
-            'mapped' => false,
-        ]);
+        if ($options['include_add_more'] === true) {
+            $builder->add('create_more', CheckboxType::class, [
+                'label' => 'label.create_more',
+                'required' => false,
+                'mapped' => false,
+            ]);
+        }
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function __configureOptions(OptionsResolver $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
+        parent::configureOptions($resolver);
+
         $resolver->setDefaults([
-            'class' => 'Kimai:User',
+            'validation_groups' => ['UserCreate'],
+            'include_add_more' => false,
         ]);
     }
 }

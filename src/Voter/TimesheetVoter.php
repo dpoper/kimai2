@@ -9,7 +9,6 @@
 
 namespace App\Voter;
 
-use App\Entity\Activity;
 use App\Entity\Timesheet;
 use App\Entity\User;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
@@ -19,6 +18,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
  */
 class TimesheetVoter extends AbstractVoter
 {
+    public const VIEW = 'view';
     public const START = 'start';
     public const STOP = 'stop';
     public const EDIT = 'edit';
@@ -26,11 +26,13 @@ class TimesheetVoter extends AbstractVoter
     public const EXPORT = 'export';
     public const VIEW_RATE = 'view_rate';
     public const EDIT_RATE = 'edit_rate';
+    public const EDIT_EXPORT = 'edit_export';
 
     /**
      * support rules based on the given $subject (here: Timesheet)
      */
     public const ALLOWED_ATTRIBUTES = [
+        self::VIEW,
         self::START,
         self::STOP,
         self::EDIT,
@@ -38,6 +40,8 @@ class TimesheetVoter extends AbstractVoter
         self::EXPORT,
         self::VIEW_RATE,
         self::EDIT_RATE,
+        self::EDIT_EXPORT,
+        'duplicate'
     ];
 
     /**
@@ -47,11 +51,11 @@ class TimesheetVoter extends AbstractVoter
      */
     protected function supports($attribute, $subject)
     {
-        if (!$subject instanceof Timesheet) {
+        if (!($subject instanceof Timesheet)) {
             return false;
         }
 
-        if (!in_array($attribute, self::ALLOWED_ATTRIBUTES)) {
+        if (!\in_array($attribute, self::ALLOWED_ATTRIBUTES)) {
             return false;
         }
 
@@ -60,7 +64,7 @@ class TimesheetVoter extends AbstractVoter
 
     /**
      * @param string $attribute
-     * @param Timesheet|Activity $subject
+     * @param Timesheet $subject
      * @param TokenInterface $token
      * @return bool
      */
@@ -72,26 +76,40 @@ class TimesheetVoter extends AbstractVoter
             return false;
         }
 
-        if (!($subject instanceof Timesheet)) {
-            return false;
-        }
-
         $permission = '';
 
         switch ($attribute) {
             case self::START:
-                if (!$this->canStart($subject, $user, $token)) {
+                if (!$this->canStart($subject)) {
                     return false;
                 }
                 $permission .= $attribute;
                 break;
 
+            case self::EDIT:
+                if (!$this->canEdit($user, $subject)) {
+                    return false;
+                }
+                $permission .= $attribute;
+                break;
+
+            case self::DELETE:
+                if (!$this->canDelete($user, $subject)) {
+                    return false;
+                }
+                $permission .= $attribute;
+                break;
+
+            case 'duplicate':
+                $permission = self::EDIT;
+                break;
+
             case self::VIEW_RATE:
             case self::EDIT_RATE:
             case self::STOP:
-            case self::EDIT:
-            case self::DELETE:
+            case self::VIEW:
             case self::EXPORT:
+            case self::EDIT_EXPORT:
                 $permission .= $attribute;
                 break;
 
@@ -113,22 +131,43 @@ class TimesheetVoter extends AbstractVoter
         return $this->hasRolePermission($user, $permission);
     }
 
-    /**
-     * @param Timesheet $timesheet
-     * @param User $user
-     * @param TokenInterface $token
-     * @return bool
-     */
-    protected function canStart(Timesheet $timesheet, User $user, TokenInterface $token)
+    protected function canStart(Timesheet $timesheet): bool
     {
-        // we could check the amount of active entries
-        // if a teamlead starts an entry for another user, check that this user is part of his team
+        // possible improvements for the future:
+        // we could check the amount of active entries (maybe slow)
+        // if a teamlead starts an entry for another user, check that this user is part of his team (needs to be done for teams)
 
-        if (!$timesheet->getActivity()->getVisible() || !$timesheet->getProject()->getVisible()) {
+        if (null === $timesheet->getActivity()) {
             return false;
         }
 
-        if (!$timesheet->getProject()->getCustomer()->getVisible()) {
+        if (null === $timesheet->getProject()) {
+            return false;
+        }
+
+        if (!$timesheet->getActivity()->isVisible() || !$timesheet->getProject()->isVisible()) {
+            return false;
+        }
+
+        if (!$timesheet->getProject()->getCustomer()->isVisible()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function canEdit(User $user, Timesheet $timesheet): bool
+    {
+        if ($timesheet->isExported() && !$this->hasRolePermission($user, 'edit_exported_timesheet')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function canDelete(User $user, Timesheet $timesheet): bool
+    {
+        if ($timesheet->isExported() && !$this->hasRolePermission($user, 'edit_exported_timesheet')) {
             return false;
         }
 

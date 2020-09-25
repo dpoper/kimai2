@@ -10,7 +10,6 @@
 namespace App\Form\Toolbar;
 
 use App\Repository\Query\TimesheetQuery;
-use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -24,32 +23,26 @@ class TimesheetToolbarForm extends AbstractToolbarForm
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $this->addTimesheetStateChoice($builder);
-        $this->addPageSizeChoice($builder);
-        $this->addStartDateChoice($builder);
-        $this->addEndDateChoice($builder);
-        $this->addCustomerChoice($builder);
-        $this->addProjectChoice($builder);
-        $this->addActivityChoice($builder);
-        $this->addHiddenPagination($builder);
-    }
+        $newOptions = [];
+        if ($options['ignore_date'] === true) {
+            $newOptions['ignore_date'] = true;
+        }
 
-    /**
-     * @param FormBuilderInterface $builder
-     */
-    protected function addTimesheetStateChoice(FormBuilderInterface $builder)
-    {
-        $builder->add('state', ChoiceType::class, [
-            'label' => 'label.entryState',
-            'required' => false,
-            'placeholder' => null,
-            'choices' => [
-                'entryState.all' => TimesheetQuery::STATE_ALL,
-                'entryState.running' => TimesheetQuery::STATE_RUNNING,
-                'entryState.stopped' => TimesheetQuery::STATE_STOPPED
-            ],
-            //'attr' => ['class' => 'selectpicker', 'data-live-search' => false, 'data-width' => '100%']
-        ]);
+        $this->addSearchTermInputField($builder);
+        if ($options['include_user']) {
+            $this->addUsersChoice($builder);
+        }
+        $this->addDateRangeChoice($builder);
+        $this->addCustomerMultiChoice($builder, $newOptions, true);
+        $this->addProjectMultiChoice($builder, $newOptions, true, true);
+        $this->addActivityMultiChoice($builder, [], true);
+        $this->addTagInputField($builder);
+        $this->addTimesheetStateChoice($builder);
+        $this->addExportStateChoice($builder);
+        $this->addPageSizeChoice($builder);
+        $this->addHiddenPagination($builder);
+        $this->addHiddenOrder($builder);
+        $this->addHiddenOrderBy($builder, TimesheetQuery::TIMESHEET_ORDER_ALLOWED);
     }
 
     /**
@@ -60,6 +53,8 @@ class TimesheetToolbarForm extends AbstractToolbarForm
         $resolver->setDefaults([
             'data_class' => TimesheetQuery::class,
             'csrf_protection' => false,
+            'include_user' => false,
+            'ignore_date' => true,
         ]);
     }
 }

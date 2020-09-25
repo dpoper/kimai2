@@ -23,10 +23,13 @@ class ProjectToolbarForm extends AbstractToolbarForm
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $this->addPageSizeChoice($builder);
+        $this->addSearchTermInputField($builder);
+        $this->addCustomerMultiChoice($builder, [], false);
         $this->addVisibilityChoice($builder);
-        $this->addCustomerChoice($builder);
+        $this->addPageSizeChoice($builder);
         $this->addHiddenPagination($builder);
+        $this->addHiddenOrder($builder);
+        $this->addHiddenOrderBy($builder, ProjectQuery::PROJECT_ORDER_ALLOWED);
     }
 
     /**

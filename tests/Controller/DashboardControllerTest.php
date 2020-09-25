@@ -9,10 +9,10 @@
 
 namespace App\Tests\Controller;
 
+use App\DataFixtures\UserFixtures;
 use App\Entity\User;
 
 /**
- * @coversDefaultClass \App\Controller\DashboardController
  * @group integration
  */
 class DashboardControllerTest extends ControllerBaseTest
@@ -28,6 +28,19 @@ class DashboardControllerTest extends ControllerBaseTest
         $this->request($client, '/dashboard/');
         $this->assertTrue($client->getResponse()->isSuccessful());
         $this->assertMainContentClass($client, 'dashboard');
+    }
+
+    public function testIndexActionForUserWithTeams()
+    {
+        $client = self::createClient([], [
+            'PHP_AUTH_USER' => 'test_user_1',
+            'PHP_AUTH_PW' => UserFixtures::DEFAULT_PASSWORD,
+        ]);
+        $this->request($client, '/dashboard/');
+        $this->assertTrue($client->getResponse()->isSuccessful());
+        self::assertEquals(1, $client->getCrawler()->filter('section.content #WidgetUserTeams')->count());
+        // team 1 has no project assignment right now
+        self::assertEquals(0, $client->getCrawler()->filter('section.content #WidgetUserTeamProjects')->count());
     }
 
     public function testIndexActionForAdmin()

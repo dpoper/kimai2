@@ -9,45 +9,32 @@
 
 namespace App\Tests\Twig;
 
-use App\Entity\Timesheet;
+use App\Constants;
+use App\Entity\Activity;
+use App\Entity\User;
 use App\Twig\Extensions;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 use Twig\TwigFilter;
+use Twig\TwigFunction;
 
 /**
  * @covers \App\Twig\Extensions
  */
 class ExtensionsTest extends TestCase
 {
-    private $localeEn = ['en' => ['date_short' => 'Y-m-d', 'duration' => '%h:%m:%s h', 'duration_short' => '%h:%m h']];
-    private $localeDe = ['de' => ['date_short' => 'd.m.Y', 'duration' => '%h:%m:%s Stunden', 'duration_short' => '%h:%m h']];
-    private $localeRu = ['ru' => ['date_short' => 'd.m.Y', 'duration' => '%h:%m:%s h', 'duration_short' => '%h:%m h']];
-    private $localeFake = ['XX' => ['date_short' => 'd.m.Y', 'duration' => '%h Stunden, %m Minuten und %s Sekunden', 'duration_short' => '%h - %m - %s Zeit']];
-
-    /**
-     * @param array $locales
-     * @param string $locale
-     * @return Extensions
-     */
-    protected function getSut($locales, $locale = 'en')
+    protected function getSut(): Extensions
     {
-        $request = new Request();
-        $request->setLocale($locale);
-        $requestStack = new RequestStack();
-        $requestStack->push($request);
-
-        return new Extensions($requestStack, $locales);
+        return new Extensions();
     }
 
     public function testGetFilters()
     {
-        $filters = ['duration', 'money', 'currency', 'country', 'icon'];
-        $sut = $this->getSut($this->localeDe);
+        $filters = ['docu_link', 'multiline_indent', 'color', 'font_contrast'];
+        $sut = $this->getSut();
         $twigFilters = $sut->getFilters();
-        $this->assertCount(count($filters), $twigFilters);
+        $this->assertCount(\count($filters), $twigFilters);
         $i = 0;
+        /** @var TwigFilter $filter */
         foreach ($twigFilters as $filter) {
             $this->assertInstanceOf(TwigFilter::class, $filter);
             $this->assertEquals($filters[$i++], $filter->getName());
@@ -56,154 +43,123 @@ class ExtensionsTest extends TestCase
 
     public function testGetFunctions()
     {
-        $functions = ['locales', 'is_visible_column', 'is_datatable_configured'];
-        $sut = $this->getSut($this->localeDe);
+        $functions = ['class_name', 'iso_day_by_name'];
+        $sut = $this->getSut();
         $twigFunctions = $sut->getFunctions();
-        $this->assertCount(count($functions), $twigFunctions);
+        $this->assertCount(\count($functions), $twigFunctions);
         $i = 0;
+        /** @var TwigFunction $filter */
         foreach ($twigFunctions as $filter) {
-            $this->assertInstanceOf(\Twig_SimpleFunction::class, $filter);
+            $this->assertInstanceOf(TwigFunction::class, $filter);
             $this->assertEquals($functions[$i++], $filter->getName());
         }
     }
 
-    public function testLocales()
+    public function testDocuLink()
     {
-        $locales = [
-            ['code' => 'en', 'name' => 'English'],
-            ['code' => 'de', 'name' => 'Deutsch'],
-            ['code' => 'ru', 'name' => 'русский'],
+        $data = [
+            'timesheet.html' => 'https://www.kimai.org/documentation/timesheet.html',
+            'timesheet.html#duration-format' => 'https://www.kimai.org/documentation/timesheet.html#duration-format',
+            'invoice.html' => 'https://www.kimai.org/documentation/invoice.html',
+            '' => 'https://www.kimai.org/documentation/',
         ];
 
-        $appLocales = array_merge($this->localeEn, $this->localeDe, $this->localeRu);
-        $sut = $this->getSut($appLocales);
-        $this->assertEquals($locales, $sut->getLocales());
-    }
-
-    public function testCurrency()
-    {
-        $symbols = [
-            'EUR' => '€',
-            'USD' => '$',
-            'RUB' => 'RUB',
-        ];
-
-        $sut = $this->getSut($this->localeEn);
-        foreach ($symbols as $name => $symbol) {
-            $this->assertEquals($symbol, $sut->currency($name));
+        $sut = $this->getSut();
+        foreach ($data as $input => $expected) {
+            $result = $sut->documentationLink($input);
+            $this->assertEquals($expected, $result);
         }
     }
 
-    public function testCountry()
+    public function testGetClassName()
     {
-        $countries = [
-            'DE' => 'Germany',
-            'RU' => 'Russia',
-            'ES' => 'Spain',
-        ];
+        $sut = $this->getSut();
+        $this->assertEquals('DateTime', $sut->getClassName(new \DateTime()));
+        $this->assertEquals('stdClass', $sut->getClassName(new \stdClass()));
+        /* @phpstan-ignore-next-line */
+        $this->assertNull($sut->getClassName(''));
+        /* @phpstan-ignore-next-line */
+        $this->assertNull($sut->getClassName(null));
+        $this->assertEquals('App\Entity\User', $sut->getClassName(new User()));
+    }
 
-        $sut = $this->getSut($this->localeEn);
-        foreach ($countries as $locale => $name) {
-            $this->assertEquals($name, $sut->country($locale));
-        }
+    public function getMultilineTestData()
+    {
+        return [
+            ['    ', null, ['']],
+            ['    ', '', ['']],
+            ['    ', 0, ['    0']],
+            ['    ', '1dfsdf
+sdfsdf' . PHP_EOL . "\n" .
+' aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh' . "\n" .
+'dfsdfsdfsdfsdf',
+                ['    1dfsdf', '    sdfsdf', '    ', '     aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh', '    dfsdfsdfsdfsdf']
+            ],
+            ['###', '2dfsdf' . PHP_EOL .
+'sdfsdf' . PHP_EOL .
+'' . "\r\n" .
+' aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh' . PHP_EOL .
+'dfsdfsdfsdfsdf',
+                ['###2dfsdf', '###sdfsdf', '###', '### aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh', '###dfsdfsdfsdfsdf']
+            ],
+            ['  ', '3dfsdf' . "\n" .
+'sdfsdf' . "\r\n" .
+'' . "\n" .
+' aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh' . "\r\n" .
+'dfsdfsdfsdfsdf',
+                ['  3dfsdf', '  sdfsdf', '  ', '   aksljdfh laksjd hflka sjhdf lakjhsdflak jsdfh', '  dfsdfsdfsdfsdf']
+            ],
+        ];
     }
 
     /**
-     * @param string $result
-     * @param int $amount
-     * @param string $currency
-     * @param string $locale
-     * @dataProvider getMoneyData
+     * @dataProvider getMultilineTestData
      */
-    public function testMoney($result, $amount, $currency, $locale)
+    public function testMultilineIndent($indent, $string, $expected)
     {
-        $sut = $this->getSut($this->localeEn, $locale);
-        $this->assertEquals($result, $sut->money($amount, $currency));
+        $sut = $this->getSut();
+        self::assertEquals(implode("\n", $expected), $sut->multilineIndent($string, $indent));
     }
 
-    public function getMoneyData()
+    /**
+     * Just a very short test, as this delegates to Utils/Color
+     */
+    public function testColor()
     {
-        return [
-            ['0 €', null, 'EUR', 'de'],
-            ['2.345 €', 2345, 'EUR', 'de'],
-            ['2,345 €', 2345, 'EUR', 'en'],
-            ['2,345.01 €', 2345.009, 'EUR', 'en'],
-            ['2.345,01 €', 2345.009, 'EUR', 'de'],
-            ['13.75 $', 13.75, 'USD', 'en'],
-            ['13,75 $', 13.75, 'USD', 'de'],
-            ['13,75 RUB', 13.75, 'RUB', 'de'],
-            ['13,5 RUB', 13.50, 'RUB', 'de'],
-            ['13,75 ₽', 13.75, 'RUB', 'ru'],
-            ['14 ¥', 13.75, 'JPY', 'de'],
-            ['13 933 ¥', 13933.49, 'JPY', 'ru'],
-            ['1.234.567,89 $', 1234567.891234567890000, 'USD', 'de'],
-        ];
+        $sut = $this->getSut();
+
+        $globalActivity = new Activity();
+        self::assertNull($sut->color($globalActivity));
+        self::assertEquals(Constants::DEFAULT_COLOR, $sut->color($globalActivity, true));
+
+        $globalActivity->setColor('#000001');
+        self::assertEquals('#000001', $sut->color($globalActivity));
+        self::assertEquals('#000001', $sut->color($globalActivity, true));
     }
 
-    public function testDuration()
+    /**
+     * Just a very short test, as this delegates to Utils/Color
+     */
+    public function testFontContrast()
     {
-        $record = $this->getTimesheet(9437);
+        $sut = $this->getSut();
 
-        $sut = $this->getSut($this->localeEn);
-        $this->assertEquals('02:37 h', $sut->duration($record->getDuration()));
-        $this->assertEquals('02:37:17 h', $sut->duration($record->getDuration(), '%h:%m:%s h'));
-
-        // test Timesheet object
-        $this->assertEquals('02:37 h', $sut->duration($record));
-        $this->assertEquals('02:37:17', $sut->duration($record, '%h:%m:%s'));
-
-        // test extended format
-        $sut = $this->getSut($this->localeFake, 'XX');
-        $this->assertEquals('02 - 37 - 17 Zeit', $sut->duration($record->getDuration(), 'short'));
-        $this->assertEquals('02 Stunden, 37 Minuten und 17 Sekunden', $sut->duration($record->getDuration(), 'full'));
-
-        // test fallback format
-        $sut = $this->getSut($this->localeEn, 'XX');
-        $this->assertEquals('02:37 h', $sut->duration($record->getDuration()));
-
-        // test negative duration
-        $sut = $this->getSut($this->localeEn, 'XX');
-        $this->assertEquals('?', $sut->duration('-1'));
-
-        // test zero duration
-        $sut = $this->getSut($this->localeEn, 'XX');
-        $this->assertEquals('00:00 h', $sut->duration('0'));
-
-        $sut = $this->getSut($this->localeEn, 'XX');
-        $this->assertNull($sut->duration(null));
+        self::assertEquals('#000000', $sut->calculateFontContrastColor('#ccc'));
     }
 
-    protected function getTimesheet($seconds)
+    public function testIsoDayByName()
     {
-        $begin = new \DateTime();
-        $end = clone $begin;
-        $end->setTimestamp($begin->getTimestamp() + $seconds);
-        $record = new Timesheet();
-        $record->setBegin($begin);
-        $record->setEnd($end);
-        $record->setDuration($seconds);
+        $sut = $this->getSut();
 
-        return $record;
-    }
-
-    public function testIcon()
-    {
-        $icons = [
-            'user', 'customer', 'project', 'activity', 'admin', 'invoice', 'timesheet', 'dashboard', 'logout', 'trash',
-            'delete', 'repeat', 'edit', 'manual', 'help', 'start', 'start-small', 'stop', 'stop-small', 'filter',
-            'create', 'list', 'print', 'visibility', 'calendar', 'money', 'duration', 'download', 'copy', 'settings'
-        ];
-
-        // test pre-defined icons
-        $sut = $this->getSut($this->localeEn);
-        foreach ($icons as $icon) {
-            $result = $sut->icon($icon);
-            $this->assertNotEmpty($result, 'Problem with icon definition: ' . $icon);
-            $this->assertInternalType('string', $result);
-        }
-
-        // test fallback will be returned
-        $this->assertEquals('', $sut->icon('foo'));
-        $this->assertEquals('bar', $sut->icon('foo', 'bar'));
+        self::assertEquals(1, $sut->getIsoDayByName('MoNdAy'));
+        self::assertEquals(2, $sut->getIsoDayByName('tuesDAY'));
+        self::assertEquals(3, $sut->getIsoDayByName('wednesday'));
+        self::assertEquals(4, $sut->getIsoDayByName('thursday'));
+        self::assertEquals(5, $sut->getIsoDayByName('FRIday'));
+        self::assertEquals(6, $sut->getIsoDayByName('saturday'));
+        self::assertEquals(7, $sut->getIsoDayByName('SUNDAY'));
+        // invalid days will return 'monday'
+        self::assertEquals(1, $sut->getIsoDayByName(''));
+        self::assertEquals(1, $sut->getIsoDayByName('sdfgsdf'));
     }
 }

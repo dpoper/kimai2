@@ -1,82 +1,82 @@
-# Kimai 2 - Time-tracking made easy
+<h1 align="center">Kimai 2 - online time-tracker</h1>
 
-Kimai - the open source time-tracker application with a mobile-first approach (read more at the [official website](http://v2.kimai.org)).
+<p align="center">
+    <img src="https://raw.githubusercontent.com/kimai/images/master/repository-header.png" alt="Kimai logo">
+</p>
 
-[![Latest Stable Version](https://poser.pugx.org/kevinpapst/kimai2/v/stable)](https://packagist.org/packages/kevinpapst/kimai2)
-[![License](https://poser.pugx.org/kevinpapst/kimai2/license)](https://packagist.org/packages/kevinpapst/kimai2)
-[![Travis Status](https://travis-ci.org/kevinpapst/kimai2.svg?branch=master)](https://travis-ci.org/kevinpapst/kimai2)
-[![Code Quality](https://scrutinizer-ci.com/g/kevinpapst/kimai2/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/kevinpapst/kimai2/?branch=master)
-[![Code Coverage](https://scrutinizer-ci.com/g/kevinpapst/kimai2/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/kevinpapst/kimai2/?branch=master)
-[![Scrutinizer Status](https://scrutinizer-ci.com/g/kevinpapst/kimai2/badges/build.png?b=master)](https://scrutinizer-ci.com/g/kevinpapst/kimai2/build-status/master)
+<p align="center">
+    <a href="https://github.com/kevinpapst/kimai2/actions"><img alt="CI Status" src="https://github.com/kevinpapst/kimai2/workflows/CI/badge.svg"></a>
+    <a href="https://codecov.io/gh/kevinpapst/kimai2"><img alt="Code Coverage" src="https://codecov.io/gh/kevinpapst/kimai2/branch/master/graph/badge.svg"></a>
+    <a href="https://packagist.org/packages/kevinpapst/kimai2"><img alt="Latest stable version" src="https://poser.pugx.org/kevinpapst/kimai2/v/stable"></a>
+    <a href="https://packagist.org/packages/kevinpapst/kimai2"><img alt="License" src="https://poser.pugx.org/kevinpapst/kimai2/license"></a>
+    <a href="https://gitter.im/kimai2/support"><img alt="Gitter" src="https://badges.gitter.im/kimai2/support.svg"></a>
+    <a href="https://www.bountysource.com/teams/kimai2"><img alt="Bountysource" src="https://img.shields.io/bountysource/team/kimai2/activity"></a>
+</p>
+
+Kimai is a free, open source and online time-tracking software designed for small businesses and freelancers. 
+It is built with modern technologies such as Symfony, Bootstrap, RESTful API, Doctrine, AdminLTE, Webpack, ES6 etc.
 
 ## Introduction
 
-This is the _reloaded_ version of the open source timetracker Kimai.
-It is built from scratch and doesn't share any source code with its [predecessor](http://www.kimai.org). 
-But it adapts the same ideas and a clean & simple UI for your time-tracking experience.
-
-By now it is in an pre-stable development phase, usable and with most advanced features from Kimai 1. 
-You can even [import your data](var/docs/migration_v1.md) and start testing and using it today.
-
-Kimai is a [multi-language application](var/docs/translations.md) and already translated to english, german, italian, french, spanish, russian, arabic, hungarian and portuguese.
+- [Home](https://www.kimai.org) - The house of Kimai
+- [Blog](https://www.kimai.org/blog/) - Get the latest news
+- [Documentation](https://www.kimai.org/documentation/) - Learn how to use
+- [Translations](https://www.kimai.org/documentation/translations.html) - Kimai in your language
+- [Migration](https://www.kimai.org/documentation/migration-v1.html) - Import data from v1 
 
 ### Requirements
 
-- PHP 7.1.3 or higher (test your system compatibility with the [requirements-checker](http://symfony.com/doc/current/reference/requirements.html))
-- The PHP extensions [intl](https://php.net/manual/en/book.intl.php), [zip](https://php.net/manual/en/book.zip.php) and [PDO](https://php.net/manual/en/book.pdo.php) with either [pdo_sqlite](https://php.net/manual/en/ref.pdo-sqlite.php) or [pdo_mysql](https://php.net/manual/en/ref.pdo-mysql.php) enabled
-- If you use MariaDB, make sure its at least v10.2.7 (see [FAQ](var/docs/faq.md))
-- Kimai needs to be installed in the root directory of a domain or you need to [recompile the frontend assets](var/docs/developers.md)
-- A modern browser, Kimai v2 might be broken on old browsers like IE 10
+- PHP 7.2.9 or higher
+- Database (MySQL/MariaDB, SQLite for development)
+- Webserver (nginx, Apache)
+- A modern browser
+- [Other libraries](https://www.kimai.org/download/)
 
-## Documentation
+### About
 
-Looking for more information about Kimai 2? Check out our detailed [documentation](var/docs/).
+This is the new version of the open source timetracker Kimai. It is stable and production ready, ships
+with most advanced features from Kimai 1 and many new ones, including but not limited to: 
 
-### Installation
+JSON API, invoicing, data exports, multi-timer and punch-in punch-out mode, tagging, multi-user and multi-timezones, 
+authentication via SAML/LDAP/Database, customizable role permissions, responsive and ready for your mobile device, 
+user specific rates, advanced search & filtering, money and time budgets with report, support for plugins and many more.
 
-There are multiple ways to install Kimai, all of them described in the [installation docu](var/docs/installation.md):
+## Installation
 
-- [Recommended installation with GIT and Composer](var/docs/installation.md#recommended-setup)
-- [Development setup](var/docs/installation.md#development-installation) 
-- [Docker](var/docs/docker.md)
-- [1-click installations](var/docs/installation.md#hosting-and-1-click-installations) 
-- [FTP](var/docs/installation.md#ftp-installation)
+- [Recommended setup](https://www.kimai.org/documentation/installation.html#recommended-setup) - with Git and Composer
+- [Docker](https://www.kimai.org/documentation/docker.html) - containerized
+- [Development](https://www.kimai.org/documentation/installation.html#development-installation) - on your local machine 
+- [1-click installer](https://www.kimai.org/documentation/installation.html#hosting-and-1-click-installations) - hosted environments 
+- [FTP](https://www.kimai.org/documentation/installation.html#ftp-installation) - unfortunately still widely used ;-)
 
 ### Updating Kimai
 
-Read the following documentations before you start your upgrade:
+- [Update Kimai](https://www.kimai.org/documentation/updates.html) - the documentation
+- [UPGRADING guide](UPGRADING.md) - version specific steps
 
-- The [update documentation](var/docs/updates.md)
-- The version specific [UPGRADING guide](UPGRADING.md)
-- The [release information](https://github.com/kevinpapst/kimai2/releases)
+### Plugins
+
+- [Plugin marketplace](https://www.kimai.org/store/) - find existing plugins here
+- [Developer documentation](https://www.kimai.org/documentation/developers.html) - how to create a plugin
 
 ## Roadmap and releases
 
-You can see our development roadmap in the [Milestones](https://github.com/kevinpapst/kimai2/milestones) sections.
-It is open for changes and input from the community, your [ideas and questions](https://github.com/kevinpapst/kimai2/issues) are welcome!
+You can see a rough development roadmap in the [Milestones](https://github.com/kevinpapst/kimai2/milestones) sections.
+It is open for changes and input from the community, your [ideas and questions](https://github.com/kevinpapst/kimai2/issues) are welcome.
 
 > Kimai 2 uses a rolling release concept for delivering updates.
 > You can upgrade Kimai at any time, you don't need to wait for the next official release.
+> The master branch is always deployable, release tags are only snapshots of the current development version.
 
-Release versions will be created on a regular base and you can use these tags if you are familiar with Git, 
-but we will not provide support for any specific version.
-Every code change, whether it's a new feature or a bug fix, will be done on the master branch and 
-intensively tested before merging. We have to do it this way, as we develop Kimai in our free time and want to put our 
-effort into the software instead of backporting changes for old versions. 
+Release versions will be created on a regular base (approx. one release every 4-8 weeks).
+Every code change, whether it's a new feature or a bug fix, will be done on the master branch. 
+Kimai is actively developed in my spare time and I put my effort into the software instead of backporting changes for old versions.
+The only exception is a critical security issue, which I would fix in the latest stable version as well. 
 
-## Extensions for Kimai 2
+## Credits
 
-As Kimai 2 was built on top of Symfony, it can be extended like every other Symfony application.
-We call these extensions bundles, but you might also know them as add-ons, extensions or plugins.
-
-All available Kimai 2 bundles can be found at the [Kimai recipes](https://github.com/kimai/recipes) repository.
-
-## Developer
-
-Kimai 2 is developed with modern frameworks like [Symfony v4](https://github.com/symfony/symfony), [Doctrine](https://github.com/doctrine/),
-[AdminLTE](https://github.com/kevinpapst/AdminLTEBundle/) and [many](composer.json) [more](package.json).
-
-If you want to start developing for Kimai 2, please read the following documentation:
-
-- an example on how to extend Kimai 2 can be found in this [GitHub repository](https://github.com/kevinpapst/kimai2-invoice)
-- the [developer documentation](var/docs/developers.md) is available both on GitHub and your local installation
+Kimai 2 is developed with modern frameworks like 
+[Symfony v4](https://github.com/symfony/symfony), 
+[Doctrine](https://github.com/doctrine/),
+[AdminLTEBundle](https://github.com/kevinpapst/AdminLTEBundle/) (based on [AdminLTE theme](https://github.com/almasaeed2010/AdminLTE)) and 
+[many](composer.json) [more](package.json).

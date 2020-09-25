@@ -9,12 +9,12 @@
 
 namespace App\Tests\Repository\Query;
 
-use App\Entity\Customer;
 use App\Repository\Query\ProjectQuery;
-use App\Repository\Query\VisibilityQuery;
+use App\Repository\Query\VisibilityInterface;
 
 /**
  * @covers \App\Repository\Query\ProjectQuery
+ * @covers \App\Repository\Query\BaseQuery
  */
 class ProjectQueryTest extends BaseQueryTest
 {
@@ -22,19 +22,27 @@ class ProjectQueryTest extends BaseQueryTest
     {
         $sut = new ProjectQuery();
 
-        $this->assertBaseQuery($sut);
-        $this->assertInstanceOf(VisibilityQuery::class, $sut);
+        $this->assertBaseQuery($sut, 'name');
+        $this->assertInstanceOf(VisibilityInterface::class, $sut);
 
-        $this->assertNull($sut->getCustomer());
+        $this->assertCustomer($sut);
 
-        $expected = new Customer();
-        $expected->setName('foo-bar');
-        $sut->setCustomer($expected);
+        $this->assertResetByFormError(new ProjectQuery(), 'name');
 
-        $this->assertEquals($expected, $sut->getCustomer());
+        self::assertNull($sut->getProjectStart());
+        self::assertNull($sut->getProjectEnd());
+    }
 
-        // make sure int is allowed as well
-        $sut->setCustomer(99);
-        $this->assertEquals(99, $sut->getCustomer());
+    public function testSetter()
+    {
+        $sut = new ProjectQuery();
+
+        $start = new \DateTime();
+        $sut->setProjectStart($start);
+        self::assertSame($start, $sut->getProjectStart());
+
+        $end = new \DateTime('-1 day');
+        $sut->setProjectEnd($end);
+        self::assertSame($end, $sut->getProjectEnd());
     }
 }

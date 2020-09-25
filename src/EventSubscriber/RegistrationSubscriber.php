@@ -14,24 +14,30 @@ use FOS\UserBundle\Event\FormEvent;
 use FOS\UserBundle\FOSUserEvents;
 use FOS\UserBundle\Model\UserManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
- * This class intercepts the registration to make sure the first-ever
- * registered user will get the SUPER_ADMIN role.
+ * This class intercepts the registration to make sure:
+ *
+ * - the first-ever registered user will get the SUPER_ADMIN role
+ * - the user uses the current request locale as initial language setting
  */
-class RegistrationSubscriber implements EventSubscriberInterface
+final class RegistrationSubscriber implements EventSubscriberInterface
 {
     /**
      * @var UserManagerInterface
      */
-    protected $userManager;
-
+    private $userManager;
     /**
-     * @param UserManagerInterface $userManager
+     * @var UrlGeneratorInterface
      */
-    public function __construct(UserManagerInterface $userManager)
+    private $router;
+
+    public function __construct(UserManagerInterface $userManager, UrlGeneratorInterface $router)
     {
         $this->userManager = $userManager;
+        $this->router = $router;
     }
 
     /**
@@ -40,7 +46,8 @@ class RegistrationSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            FOSUserEvents::REGISTRATION_SUCCESS => ['onRegistrationSuccess', 200]
+            FOSUserEvents::REGISTRATION_SUCCESS => ['onRegistrationSuccess', 200],
+            FOSUserEvents::RESETTING_RESET_SUCCESS => ['onResettingSuccess', 200],
         ];
     }
 
@@ -49,7 +56,7 @@ class RegistrationSubscriber implements EventSubscriberInterface
      */
     public function onRegistrationSuccess(FormEvent $event)
     {
-        /** @var $user \FOS\UserBundle\Model\UserInterface */
+        /** @var User $user */
         $user = $event->getForm()->getData();
         $roles = [User::ROLE_USER];
 
@@ -57,6 +64,15 @@ class RegistrationSubscriber implements EventSubscriberInterface
             $roles = [User::ROLE_SUPER_ADMIN];
         }
 
+        $user->setLanguage($event->getRequest()->getLocale());
         $user->setRoles($roles);
+    }
+
+    /**
+     * @param FormEvent $event
+     */
+    public function onResettingSuccess(FormEvent $event)
+    {
+        $event->setResponse(new RedirectResponse($this->router->generate('my_profile')));
     }
 }

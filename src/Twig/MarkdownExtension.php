@@ -9,31 +9,32 @@
 
 namespace App\Twig;
 
+use App\Configuration\TimesheetConfiguration;
 use App\Utils\Markdown;
+use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 
 /**
- * A twig extension to handle markdown parser.
+ * A twig extension to handle markdown content.
  */
-class MarkdownExtension extends \Twig_Extension
+final class MarkdownExtension extends AbstractExtension
 {
     /**
      * @var Markdown
      */
     private $markdown;
     /**
-     * @var bool
+     * @var TimesheetConfiguration
      */
-    private $timesheetIsMarkdown = false;
+    private $configuration;
 
     /**
-     * MarkdownExtension constructor.
      * @param Markdown $parser
      */
-    public function __construct(Markdown $parser, bool $timesheetAsMarkdown = false)
+    public function __construct(Markdown $parser, TimesheetConfiguration $configuration)
     {
         $this->markdown = $parser;
-        $this->timesheetIsMarkdown = $timesheetAsMarkdown;
+        $this->configuration = $configuration;
     }
 
     /**
@@ -44,22 +45,49 @@ class MarkdownExtension extends \Twig_Extension
         return [
             new TwigFilter('md2html', [$this, 'markdownToHtml'], ['is_safe' => ['html']]),
             new TwigFilter('desc2html', [$this, 'timesheetContent'], ['is_safe' => ['html']]),
+            new TwigFilter('comment2html', [$this, 'commentContent'], ['is_safe' => ['html']]),
         ];
     }
 
     /**
-     * Transforms the timesheet description content into HTML.
+     * Transforms the entities comment (customer, project, activity ...) into HTML.
      *
-     * @param string $content
+     * @param string|null $content
+     * @param bool $fullLength
      * @return string
      */
-    public function timesheetContent($content): string
+    public function commentContent(?string $content, bool $fullLength = false): string
     {
         if (empty($content)) {
             return '';
         }
 
-        if ($this->timesheetIsMarkdown) {
+        if (!$fullLength && \strlen($content) > 101) {
+            $content = trim(substr($content, 0, 100)) . ' &hellip;';
+        }
+
+        if ($this->configuration->isMarkdownEnabled()) {
+            $content = $this->markdown->toHtml($content, false);
+        } elseif ($fullLength) {
+            $content = '<p>' . nl2br($content) . '</p>';
+        }
+
+        return $content;
+    }
+
+    /**
+     * Transforms the timesheet description content into HTML.
+     *
+     * @param string|null $content
+     * @return string
+     */
+    public function timesheetContent(?string $content): string
+    {
+        if (empty($content)) {
+            return '';
+        }
+
+        if ($this->configuration->isMarkdownEnabled()) {
             return $this->markdown->toHtml($content, false);
         }
 
@@ -74,6 +102,6 @@ class MarkdownExtension extends \Twig_Extension
      */
     public function markdownToHtml(string $content): string
     {
-        return $this->markdown->toHtml($content, true);
+        return $this->markdown->toHtml($content, false);
     }
 }

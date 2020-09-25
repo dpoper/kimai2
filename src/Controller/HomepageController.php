@@ -10,34 +10,57 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Form\Type\InitialViewType;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
 /**
  * Homepage controller is a redirect controller with user specific logic.
  *
  * @Route(path="/homepage")
- * @Security("is_granted('ROLE_USER')")
+ * @Security("is_granted('IS_AUTHENTICATED_REMEMBERED')")
  */
 class HomepageController extends AbstractController
 {
     /**
      * @Route(path="", defaults={}, name="homepage", methods={"GET"})
-     *
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse
      */
-    public function indexAction(Request $request)
+    public function indexAction(Request $request): Response
     {
-        // make me configurable via UserPreference
-        $route = 'timesheet';
-
         /** @var User $user */
         $user = $this->getUser();
-        $locale = $request->getLocale();
-        $language = $user->getPreferenceValue('language', $locale);
+        $userRoute = $user->getPreferenceValue('login.initial_view', InitialViewType::DEFAULT_VIEW);
+        $userLanguage = $user->getLanguage();
+        $requestLanguage = $request->getLocale();
 
-        return $this->redirectToRoute($route, ['_locale' => $language]);
+        if (empty($requestLanguage)) {
+            $requestLanguage = User::DEFAULT_LANGUAGE;
+        }
+
+        if (empty($userLanguage)) {
+            $userLanguage = $requestLanguage;
+        }
+
+        $routes = [
+            [$userRoute, $userLanguage],
+            [$userRoute, $requestLanguage],
+            [$userRoute, User::DEFAULT_LANGUAGE],
+            [InitialViewType::DEFAULT_VIEW, $userLanguage],
+            [InitialViewType::DEFAULT_VIEW, $requestLanguage],
+        ];
+
+        foreach ($routes as $routeSettings) {
+            $route = $routeSettings[0];
+            $language = $routeSettings[1];
+            try {
+                return $this->redirectToRoute($route, ['_locale' => $language]);
+            } catch (\Exception $exception) {
+                // something is wrong with the url parameters ...
+            }
+        }
+
+        return $this->redirectToRoute(InitialViewType::DEFAULT_VIEW, ['_locale' => User::DEFAULT_LANGUAGE]);
     }
 }

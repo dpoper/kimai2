@@ -10,9 +10,11 @@
 namespace App\Tests\Validator\Constraints;
 
 use App\Entity\User;
+use App\Tests\Mocks\Security\RoleServiceFactory;
 use App\Validator\Constraints\Role;
 use App\Validator\Constraints\RoleValidator;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Exception\UnexpectedTypeException;
 use Symfony\Component\Validator\Test\ConstraintValidatorTestCase;
 
 /**
@@ -22,13 +24,15 @@ class RoleValidatorTest extends ConstraintValidatorTestCase
 {
     protected function createValidator()
     {
-        return new RoleValidator();
+        $factory = new RoleServiceFactory($this);
+        $roleService = $factory->create();
+
+        return new RoleValidator($roleService);
     }
 
     public function getValidRoles()
     {
         return [
-            [User::ROLE_CUSTOMER],
             [User::ROLE_USER],
             [User::ROLE_TEAMLEAD],
             [User::ROLE_ADMIN],
@@ -36,11 +40,10 @@ class RoleValidatorTest extends ConstraintValidatorTestCase
         ];
     }
 
-    /**
-     * @expectedException \Symfony\Component\Validator\Exception\UnexpectedTypeException
-     */
     public function testConstraintIsInvalid()
     {
+        $this->expectException(UnexpectedTypeException::class);
+
         $this->validator->validate('foo', new NotBlank());
     }
 
@@ -89,7 +92,7 @@ class RoleValidatorTest extends ConstraintValidatorTestCase
 
         $this->validator->validate($role, $constraint);
 
-        $expectedFormat = is_string($role) ? '"' . $role . '"' : $role;
+        $expectedFormat = \is_string($role) ? '"' . $role . '"' : $role;
 
         $this->buildViolation('myMessage')
             ->setParameter('{{ value }}', $expectedFormat)

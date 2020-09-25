@@ -43,6 +43,7 @@ class InvoiceRendererType extends AbstractType
             foreach ($this->service->getRenderer() as $renderer) {
                 if ($renderer->supports($document)) {
                     $documents[$document->getId()] = $document->getName();
+                    break;
                 }
             }
         }
@@ -55,7 +56,8 @@ class InvoiceRendererType extends AbstractType
                 return $choiceValue;
             },
             'translation_domain' => 'invoice-renderer',
-            'docu_chapter' => 'invoices',
+            'docu_chapter' => 'invoices.html',
+            'search' => false,
         ]);
     }
 
@@ -69,13 +71,19 @@ class InvoiceRendererType extends AbstractType
     {
         $renderer = $label;
 
-        return ucfirst(
-            substr(
-                $renderer,
-                1 + strrpos($renderer, '.'),
-                strrpos($renderer, '.')
-            )
-        );
+        $parts = explode('.', $renderer);
+
+        if (\count($parts) > 2) {
+            array_pop($parts);
+        }
+
+        $type = array_pop($parts);
+
+        if (\in_array(strtolower($type), ['json', 'txt', 'xml'])) {
+            return 'programmatic';
+        }
+
+        return ucfirst($type);
     }
 
     /**

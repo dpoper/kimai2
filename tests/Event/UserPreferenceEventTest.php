@@ -7,7 +7,7 @@
  * file that was distributed with this source code.
  */
 
-namespace App\Tests\EventSubscriber;
+namespace App\Tests\Event;
 
 use App\Entity\User;
 use App\Entity\UserPreference;
@@ -31,16 +31,15 @@ class UserPreferenceEventTest extends TestCase
         $this->assertEquals($user, $sut->getUser());
         $this->assertEquals([], $sut->getPreferences());
 
-        $sut->addUserPreference($pref);
+        $sut->addPreference($pref);
 
         $this->assertEquals([$pref], $sut->getPreferences());
     }
 
-    /**
-     * @expectedException \InvalidArgumentException
-     */
     public function testDuplicatePreferenceThrowsException()
     {
+        $this->expectException(\InvalidArgumentException::class);
+
         $user = new User();
         $user->setAlias('foo');
         $pref = new UserPreference();
@@ -51,7 +50,28 @@ class UserPreferenceEventTest extends TestCase
 
         $sut = new UserPreferenceEvent($user, []);
 
-        $sut->addUserPreference($pref);
-        $sut->addUserPreference($pref2);
+        $sut->addPreference($pref);
+        $sut->addPreference($pref2);
+    }
+
+    /**
+     * @group legacy
+     */
+    public function testDeprecations()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $user = new User();
+        $user->setAlias('foo');
+        $pref = new UserPreference();
+        $pref->setName('foo')->setValue('bar');
+
+        $pref2 = new UserPreference();
+        $pref2->setName('foo')->setValue('hello');
+
+        $sut = new UserPreferenceEvent($user, []);
+
+        $sut->addUserPreference($pref); // change me, once the deprecated method will be deleted
+        $sut->addUserPreference($pref2); // change me, once the deprecated method will be deleted
     }
 }

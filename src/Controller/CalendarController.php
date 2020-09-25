@@ -9,89 +9,135 @@
 
 namespace App\Controller;
 
-use App\Calendar\Service;
-use App\Calendar\TimesheetEntity;
-use App\Entity\Timesheet;
-use App\Repository\Query\TimesheetQuery;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Cache;
+use App\Calendar\DragAndDropSource;
+use App\Calendar\Google;
+use App\Calendar\GoogleSource;
+use App\Calendar\RecentActivitiesSource;
+use App\Calendar\TimesheetEntry;
+use App\Configuration\SystemConfiguration;
+use App\Event\CalendarDragAndDropSourceEvent;
+use App\Event\CalendarGoogleSourceEvent;
+use App\Repository\TimesheetRepository;
+use App\Timesheet\TrackingModeService;
+use App\Utils\Color;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Controller used to display calendars.
  *
  * @Route(path="/calendar")
- * @Security("is_granted('ROLE_USER')")
+ * @Security("is_granted('IS_AUTHENTICATED_REMEMBERED')")
  */
 class CalendarController extends AbstractController
 {
     /**
-     * @var Service
+     * @var EventDispatcherInterface
      */
-    protected $calendar;
+    private $dispatcher;
 
-    /**
-     * @param Service $calendar
-     */
-    public function __construct(Service $calendar)
+    public function __construct(EventDispatcherInterface $dispatcher)
     {
-        $this->calendar = $calendar;
+        $this->dispatcher = $dispatcher;
     }
 
     /**
      * @Route(path="/", name="calendar", methods={"GET"})
-     * @Cache(smaxage="10")
      */
-    public function userCalendar()
+    public function userCalendar(SystemConfiguration $configuration, TrackingModeService $service, TimesheetRepository $repository)
     {
+        $mode = $service->getActiveMode();
+        $factory = $this->getDateTimeFactory();
+        $defaultStart = $factory->createDateTime($configuration->getTimesheetDefaultBeginTime());
+
+        $config = [
+            'dayLimit' => $configuration->getCalendarDayLimit(),
+            'showWeekNumbers' => $configuration->isCalendarShowWeekNumbers(),
+            'showWeekends' => $configuration->isCalendarShowWeekends(),
+            'businessDays' => $configuration->getCalendarBusinessDays(),
+            'businessTimeBegin' => $configuration->getCalendarBusinessTimeBegin(),
+            'businessTimeEnd' => $configuration->getCalendarBusinessTimeEnd(),
+            'slotDuration' => $configuration->getCalendarSlotDuration(),
+            'timeframeBegin' => $configuration->getCalendarTimeframeBegin(),
+            'timeframeEnd' => $configuration->getCalendarTimeframeEnd(),
+        ];
+
+        $isPunchMode = !$mode->canEditDuration() && !$mode->canEditBegin() && !$mode->canEditEnd();
+        $dragAndDrop = [];
+
+        if ($mode->canEditBegin()) {
+            $dragAndDrop = $this->getDragAndDropResources($repository);
+        }
+
         return $this->render('calendar/user.html.twig', [
-            'config' => $this->calendar->getConfig(),
-            'google' => $this->calendar->getGoogle()
+            'config' => $config,
+            'dragAndDrop' => $dragAndDrop,
+            'google' => $this->getGoogleSources($configuration),
+            'now' => $factory->createDateTime(),
+            'defaultStartTime' => $defaultStart->format('h:i:s'),
+            'is_punch_mode' => $isPunchMode,
+            'can_edit_begin' => $mode->canEditBegin(),
+            'can_edit_end' => $mode->canEditBegin(),
+            'can_edit_duration' => $mode->canEditDuration(),
         ]);
     }
 
     /**
-     * @Route(path="/user", name="calendar_entries", methods={"GET"})
-     * @Cache(smaxage="10")
+     * @return DragAndDropSource[]
      */
-    public function calendarEntries(Request $request)
+    private function getDragAndDropResources(TimesheetRepository $repository): array
     {
-        $start = $request->get('start');
-        $end = $request->get('end');
+        $sources = [];
 
-        $start = \DateTime::createFromFormat('Y-m-d', $start);
-        if ($start === false) {
-            $start = new \DateTime('first day of this month');
-        }
-        $start->setTime(0, 0, 0);
+        try {
+            $data = $repository->getRecentActivities(
+                $this->getUser(),
+                $this->getDateTimeFactory()->createDateTime('-1 year'),
+                10
+            );
 
-        $end = \DateTime::createFromFormat('Y-m-d', $end);
-        if ($end === false) {
-            $end = clone $start;
-            $end = $end->modify('last day of this month');
-        }
-        $end->setTime(23, 59, 59);
+            $entries = [];
+            $colorHelper = new Color();
+            foreach ($data as $timesheet) {
+                $entries[] = new TimesheetEntry($timesheet, $colorHelper->getTimesheetColor($timesheet));
+            }
 
-        $query = new TimesheetQuery();
-        $query
-            ->setBegin($start)
-            ->setUser($this->getUser())
-            ->setState(TimesheetQuery::STATE_ALL)
-            ->setResultType(TimesheetQuery::RESULT_TYPE_QUERYBUILDER)
-            ->setEnd($end)
-        ;
-
-        $repository = $this->getDoctrine()->getRepository(Timesheet::class);
-
-        /* @var $entries Timesheet[] */
-        $entries = $repository->findByQuery($query)->getQuery()->execute();
-        $result = [];
-
-        foreach ($entries as $entry) {
-            $result[] = new TimesheetEntity($entry);
+            $sources[] = new RecentActivitiesSource($entries);
+        } catch (\Exception $ex) {
+            $this->logException($ex);
         }
 
-        return $this->json($result);
+        $event = new CalendarDragAndDropSourceEvent($this->getUser());
+        $this->dispatcher->dispatch($event);
+
+        foreach ($event->getSources() as $source) {
+            $sources[] = $source;
+        }
+
+        return $sources;
+    }
+
+    private function getGoogleSources(SystemConfiguration $configuration): ?Google
+    {
+        $apiKey = $configuration->getCalendarGoogleApiKey();
+        if ($apiKey === null) {
+            return null;
+        }
+
+        $sources = [];
+
+        foreach ($configuration->getCalendarGoogleSources() as $name => $config) {
+            $sources[] = new GoogleSource($name, $config['id'], $config['color']);
+        }
+
+        $event = new CalendarGoogleSourceEvent($this->getUser());
+        $this->dispatcher->dispatch($event);
+
+        foreach ($event->getSources() as $source) {
+            $sources[] = $source;
+        }
+
+        return new Google($apiKey, $sources);
     }
 }

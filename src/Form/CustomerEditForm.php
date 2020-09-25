@@ -10,12 +10,10 @@
 namespace App\Form;
 
 use App\Entity\Customer;
-use App\Form\Type\YesNoType;
+use App\Form\Type\MailType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CountryType;
 use Symfony\Component\Form\Extension\Core\Type\CurrencyType;
-use Symfony\Component\Form\Extension\Core\Type\EmailType;
-use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Form\Extension\Core\Type\TelType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -24,33 +22,42 @@ use Symfony\Component\Form\Extension\Core\Type\UrlType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-/**
- * Defines the form used to edit Customer entities.
- */
 class CustomerEditForm extends AbstractType
 {
+    use EntityFormTrait;
+
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        /** @var Customer $customer */
-        $customer = $options['data'];
+        if (isset($options['data'])) {
+            /** @var Customer $customer */
+            $customer = $options['data'];
+            $options['currency'] = $customer->getCurrency();
+        }
 
         $builder
             ->add('name', TextType::class, [
                 'label' => 'label.name',
+                'attr' => [
+                    'autofocus' => 'autofocus'
+                ],
             ])
             ->add('number', TextType::class, [
-                'label' => 'label.customer_number',
+                'label' => 'label.number',
                 'required' => false,
             ])
             ->add('comment', TextareaType::class, [
-                'label' => 'label.comment',
+                'label' => 'label.description',
                 'required' => false,
             ])
             ->add('company', TextType::class, [
                 'label' => 'label.company',
+                'required' => false,
+            ])
+            ->add('vatId', TextType::class, [
+                'label' => 'label.vat_id',
                 'required' => false,
             ])
             ->add('contact', TextType::class, [
@@ -81,8 +88,7 @@ class CustomerEditForm extends AbstractType
                 'required' => false,
                 'attr' => ['icon' => 'mobile'],
             ])
-            ->add('mail', EmailType::class, [
-                'label' => 'label.email',
+            ->add('email', MailType::class, [
                 'required' => false,
             ])
             ->add('homepage', UrlType::class, [
@@ -91,21 +97,9 @@ class CustomerEditForm extends AbstractType
             ])
             ->add('timezone', TimezoneType::class, [
                 'label' => 'label.timezone',
-            ])
-            ->add('fixedRate', MoneyType::class, [
-                'label' => 'label.fixed_rate',
-                'required' => false,
-                'currency' => $customer->getCurrency() ?? false,
-            ])
-            ->add('hourlyRate', MoneyType::class, [
-                'label' => 'label.hourly_rate',
-                'required' => false,
-                'currency' => $customer->getCurrency() ?? false,
-            ])
-            ->add('visible', YesNoType::class, [
-                'label' => 'label.visible',
-            ])
-        ;
+            ]);
+
+        $this->addCommonFields($builder, $options);
     }
 
     /**
@@ -118,6 +112,11 @@ class CustomerEditForm extends AbstractType
             'csrf_protection' => true,
             'csrf_field_name' => '_token',
             'csrf_token_id' => 'admin_customer_edit',
+            'currency' => Customer::DEFAULT_CURRENCY,
+            'include_budget' => false,
+            'attr' => [
+                'data-form-event' => 'kimai.customerUpdate'
+            ],
         ]);
     }
 }

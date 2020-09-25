@@ -26,10 +26,10 @@ class UserRolesType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         $builder
-            // string[]
             ->add('roles', UserRoleType::class, [
                 'label' => 'label.roles',
                 'multiple' => true,
+                'expanded' => true,
             ])
         ;
     }
@@ -40,6 +40,7 @@ class UserRolesType extends AbstractType
     public function configureOptions(OptionsResolver $resolver)
     {
         $resolver->setDefaults([
+            'validation_groups' => ['RolesUpdate'],
             'data_class' => User::class,
             'csrf_protection' => true,
             'csrf_field_name' => '_token',

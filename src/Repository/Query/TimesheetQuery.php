@@ -10,148 +10,295 @@
 namespace App\Repository\Query;
 
 use App\Entity\Activity;
+use App\Entity\Tag;
 use App\Entity\User;
+use App\Form\Model\DateRange;
 
 /**
  * Can be used for advanced timesheet repository queries.
  */
-class TimesheetQuery extends ActivityQuery
+class TimesheetQuery extends ActivityQuery implements BillableInterface
 {
+    use BillableTrait;
+
     public const STATE_ALL = 1;
     public const STATE_RUNNING = 2;
     public const STATE_STOPPED = 3;
+    public const STATE_EXPORTED = 4;
+    public const STATE_NOT_EXPORTED = 5;
+
+    public const TIMESHEET_ORDER_ALLOWED = ['begin', 'end', 'duration', 'rate', 'customer', 'project', 'activity', 'description'];
 
     /**
-     * Overwritten for different default order
-     * @var string
+     * @var User|null
      */
-    protected $order = self::ORDER_DESC;
+    protected $timesheetUser;
     /**
-     * Overwritten for different default order
-     * @var string
+     * @var array
      */
-    protected $orderBy = 'begin';
-    /**
-     * @var User
-     */
-    protected $user;
-    /**
-     * @var Activity
-     */
-    protected $activity;
+    private $activities = [];
     /**
      * @var int
      */
     protected $state = self::STATE_ALL;
     /**
-     * @var \DateTime
+     * @var int
      */
-    protected $begin;
+    protected $exported = self::STATE_ALL;
     /**
-     * @var \DateTime
+     * @var \DateTime|null
      */
-    protected $end;
+    private $modifiedAfter;
+    /**
+     * @var DateRange
+     */
+    protected $dateRange;
+    /**
+     * @var iterable
+     */
+    protected $tags = [];
+    /**
+     * @var User[]
+     */
+    private $users = [];
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->setDefaults([
+            'order' => self::ORDER_DESC,
+            'orderBy' => 'begin',
+            'dateRange' => new DateRange()
+        ]);
+    }
+
+    public function addUser(User $user): self
+    {
+        $this->users[$user->getId()] = $user;
+
+        return $this;
+    }
+
+    public function removeUser(User $user): self
+    {
+        if (isset($this->users[$user->getId()])) {
+            unset($this->users[$user->getId()]);
+        }
+
+        return $this;
+    }
 
     /**
-     * @return User
+     * @return User[]
+     */
+    public function getUsers(): array
+    {
+        return array_values($this->users);
+    }
+
+    /**
+     * Limit the data exclusively to the user (eg. users own timesheets).
+     *
+     * @return User|int|null
      */
     public function getUser()
     {
-        return $this->user;
+        return $this->timesheetUser;
     }
 
     /**
-     * @param User $user
+     * Limit the data exclusively to the user (eg. users own timesheets).
+     *
+     * @param User|int|null $user
      * @return TimesheetQuery
      */
-    public function setUser(User $user = null)
+    public function setUser($user = null)
     {
-        $this->user = $user;
+        $this->timesheetUser = $user;
 
         return $this;
     }
 
     /**
-     * Activity overwrites: setProject() and setCustomer()
-     *
-     * @return Activity
+     * @return Activity|int|null
+     * @deprecated since 1.9 - use getActivities() instead - will be removed with 2.0
      */
     public function getActivity()
     {
-        return $this->activity;
+        if (\count($this->activities) > 0) {
+            return $this->activities[0];
+        }
+
+        return null;
+    }
+
+    public function getActivities(): array
+    {
+        return $this->activities;
     }
 
     /**
-     * @param Activity $activity
-     * @return TimesheetQuery
+     * @param Activity|int|null $activity
+     * @return $this
+     * @deprecated since 1.9 - use setActivities() or addActivity() instead - will be removed with 2.0
      */
-    public function setActivity(Activity $activity = null)
+    public function setActivity($activity)
     {
-        $this->activity = $activity;
+        if (null === $activity) {
+            $this->activities = [];
+        } else {
+            $this->activities = [$activity];
+        }
 
         return $this;
     }
 
     /**
-     * @return int
+     * @param Activity|int $activity
+     * @return $this
      */
-    public function getState()
+    public function addActivity($activity): TimesheetQuery
+    {
+        $this->activities[] = $activity;
+
+        return $this;
+    }
+
+    /**
+     * @param Activity[]|int[] $activities
+     * @return $this
+     */
+    public function setActivities(array $activities): TimesheetQuery
+    {
+        $this->activities = $activities;
+
+        return $this;
+    }
+
+    public function hasActivities(): bool
+    {
+        return !empty($this->activities);
+    }
+
+    public function getState(): int
     {
         return $this->state;
     }
 
-    /**
-     * @param int $state
-     * @return TimesheetQuery
-     */
-    public function setState($state)
+    public function isRunning(): bool
     {
-        if (!is_int($state) && $state != (int) $state) {
-            return $this;
-        }
+        return $this->state === self::STATE_RUNNING;
+    }
 
+    public function isStopped(): bool
+    {
+        return $this->state === self::STATE_STOPPED;
+    }
+
+    public function setState(int $state): TimesheetQuery
+    {
         $state = (int) $state;
-        if (in_array($state, [self::STATE_ALL, self::STATE_RUNNING, self::STATE_STOPPED], true)) {
+        if (\in_array($state, [self::STATE_ALL, self::STATE_RUNNING, self::STATE_STOPPED], true)) {
             $this->state = $state;
         }
 
         return $this;
     }
 
-    /**
-     * @return \DateTime
-     */
-    public function getBegin()
+    public function getExported(): int
     {
-        return $this->begin;
+        return $this->exported;
     }
 
-    /**
-     * @param \DateTime $begin
-     * @return TimesheetQuery
-     */
-    public function setBegin($begin)
+    public function isExported(): bool
     {
-        $this->begin = $begin;
+        return $this->exported === self::STATE_EXPORTED;
+    }
+
+    public function isNotExported(): bool
+    {
+        return $this->exported === self::STATE_NOT_EXPORTED;
+    }
+
+    public function setExported(int $exported): TimesheetQuery
+    {
+        $exported = (int) $exported;
+        if (\in_array($exported, [self::STATE_ALL, self::STATE_EXPORTED, self::STATE_NOT_EXPORTED], true)) {
+            $this->exported = $exported;
+        }
 
         return $this;
     }
 
-    /**
-     * @return \DateTime
-     */
-    public function getEnd()
+    public function getBegin(): ?\DateTime
     {
-        return $this->end;
+        return $this->dateRange->getBegin();
     }
 
-    /**
-     * @param \DateTime $end
-     * @return TimesheetQuery
-     */
-    public function setEnd($end)
+    public function setBegin(\DateTime $begin): TimesheetQuery
     {
-        $this->end = $end;
+        $this->dateRange->setBegin($begin);
+
+        return $this;
+    }
+
+    public function getEnd(): ?\DateTime
+    {
+        return $this->dateRange->getEnd();
+    }
+
+    public function setEnd(\DateTime $end): TimesheetQuery
+    {
+        $this->dateRange->setEnd($end);
+
+        return $this;
+    }
+
+    public function getDateRange(): DateRange
+    {
+        return $this->dateRange;
+    }
+
+    public function setDateRange(DateRange $dateRange): TimesheetQuery
+    {
+        $this->dateRange = $dateRange;
+
+        return $this;
+    }
+
+    public function getTags(bool $allowUnknown = false): iterable
+    {
+        if (empty($this->tags)) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($this->tags as $tag) {
+            if (!$allowUnknown && $tag instanceof Tag && null === $tag->getId()) {
+                continue;
+            }
+            $result[] = $tag;
+        }
+
+        return $result;
+    }
+
+    public function setTags(iterable $tags): TimesheetQuery
+    {
+        $this->tags = $tags;
+
+        return $this;
+    }
+
+    public function getModifiedAfter(): ?\DateTime
+    {
+        return $this->modifiedAfter;
+    }
+
+    public function setModifiedAfter(\DateTime $modifiedAfter): TimesheetQuery
+    {
+        $this->modifiedAfter = $modifiedAfter;
 
         return $this;
     }

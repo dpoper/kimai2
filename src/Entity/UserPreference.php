@@ -9,6 +9,7 @@
 
 namespace App\Entity;
 
+use App\Form\Type\YesNoType;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
@@ -16,11 +17,8 @@ use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * UserPreference
- *
  * @ORM\Entity()
- * @ORM\Table(
- *      name="user_preferences",
+ * @ORM\Table(name="kimai2_user_preferences",
  *      uniqueConstraints={
  *          @ORM\UniqueConstraint(columns={"user_id", "name"})
  *      }
@@ -29,7 +27,11 @@ use Symfony\Component\Validator\Constraints as Assert;
 class UserPreference
 {
     public const HOURLY_RATE = 'hourly_rate';
+    public const INTERNAL_RATE = 'internal_rate';
     public const SKIN = 'skin';
+    public const LOCALE = 'language';
+    public const TIMEZONE = 'timezone';
+    public const FIRST_WEEKDAY = 'first_weekday';
 
     /**
      * @var int
@@ -39,7 +41,6 @@ class UserPreference
      * @ORM\Column(name="id", type="integer")
      */
     private $id;
-
     /**
      * @var User
      *
@@ -48,41 +49,47 @@ class UserPreference
      * @Assert\NotNull()
      */
     private $user;
-
     /**
      * @var string
      *
      * @ORM\Column(name="name", type="string", length=50, nullable=false)
-     * @Assert\Length(min=2, max=50)
+     * @Assert\NotNull()
+     * @Assert\Length(min=2, max=50, allowEmptyString=false)
      */
     private $name;
-
     /**
      * @var string
      *
      * @ORM\Column(name="value", type="string", length=255, nullable=true)
      */
     private $value;
-
     /**
      * @var string
      */
-    protected $type;
-
+    private $type;
     /**
      * @var bool
      */
-    protected $enabled = true;
-
+    private $enabled = true;
     /**
      * @var Constraint[]
      */
-    protected $constraints = [];
-
+    private $constraints = [];
     /**
-     * @return int
+     * An array of options for the form element
+     * @var array
      */
-    public function getId()
+    private $options = [];
+    /**
+     * @var int
+     */
+    private $order = 1000;
+    /**
+     * @var string
+     */
+    private $section = 'default';
+
+    public function getId(): ?int
     {
         return $this->id;
     }
@@ -98,18 +105,11 @@ class UserPreference
         return $this;
     }
 
-    /**
-     * @return User
-     */
-    public function getUser(): User
+    public function getUser(): ?User
     {
         return $this->user;
     }
 
-    /**
-     * @param User $user
-     * @return UserPreference
-     */
     public function setUser(User $user): UserPreference
     {
         $this->user = $user;
@@ -117,18 +117,11 @@ class UserPreference
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getName()
+    public function getName(): ?string
     {
         return $this->name;
     }
 
-    /**
-     * @param string $name
-     * @return UserPreference
-     */
     public function setName(string $name): UserPreference
     {
         $this->name = $name;
@@ -142,6 +135,7 @@ class UserPreference
     public function getValue()
     {
         switch ($this->type) {
+            case YesNoType::class:
             case CheckboxType::class:
                 return (bool) $this->value;
             case IntegerType::class:
@@ -171,34 +165,24 @@ class UserPreference
      * @param string $type
      * @return UserPreference
      */
-    public function setType(string $type)
+    public function setType(string $type): UserPreference
     {
         $this->type = $type;
 
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getType()
+    public function getType(): ?string
     {
         return $this->type;
     }
 
-    /**
-     * @return bool
-     */
     public function isEnabled(): bool
     {
         return $this->enabled;
     }
 
-    /**
-     * @param bool $enabled
-     * @return UserPreference
-     */
-    public function setEnabled(bool $enabled)
+    public function setEnabled(bool $enabled): UserPreference
     {
         $this->enabled = $enabled;
 
@@ -237,5 +221,61 @@ class UserPreference
     public function getConstraints()
     {
         return $this->constraints;
+    }
+
+    /**
+     * Set an array of options for the FormType.
+     *
+     * @param array $options
+     * @return UserPreference
+     */
+    public function setOptions(array $options): UserPreference
+    {
+        $this->options = $options;
+
+        return $this;
+    }
+
+    /**
+     * Returns an array with options for the FormType.
+     *
+     * @return array
+     */
+    public function getOptions(): array
+    {
+        return $this->options;
+    }
+
+    public function getLabel(): ?string
+    {
+        if (isset($this->options['label'])) {
+            return $this->options['label'];
+        }
+
+        return $this->name;
+    }
+
+    public function getOrder(): int
+    {
+        return $this->order;
+    }
+
+    public function setOrder(int $order): UserPreference
+    {
+        $this->order = $order;
+
+        return $this;
+    }
+
+    public function setSection(string $section): UserPreference
+    {
+        $this->section = $section;
+
+        return $this;
+    }
+
+    public function getSection(): string
+    {
+        return $this->section;
     }
 }

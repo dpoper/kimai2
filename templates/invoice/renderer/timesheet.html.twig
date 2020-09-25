@@ -2,17 +2,18 @@
 {% extends 'invoice/layout.html.twig' %}
 
 {% block invoice %}
+{% set isDecimal = model.template.decimalDuration|default(false) %}
 <div class="row">
     <div class="col-xs-12">
         <h2 class="page-header">
-           <span contenteditable="true">{{ model.template.title|default('invoice_renderer.timesheet'|trans) }}</span>
+           <span contenteditable="true">{{ model.template.title }}</span>
         </h2>
     </div>
 </div>
 
-<div class="row invoice-info" style="padding: 10px 0 20px 0">
-    <div class="col-sm-12 invoice-col">
-        <table>
+<div class="row">
+    <div class="col-xs-12">
+        <table class="table no-border table-condensed">
             <tr>
                 <th>{{ 'invoice.from'|trans }}</th>
                 <td contenteditable="true">
@@ -24,12 +25,12 @@
                 </td>
             </tr>
             <tr>
-                <th style="width:50%">{{ 'label.date'|trans }}</th>
+                <th>{{ 'label.date'|trans }}</th>
                 <td contenteditable="true">
                     {% if model.query.begin|date('m') != model.query.end|date('m') or model.query.begin|date('Y') != model.query.end|date('Y') %}
                         {{ model.query.begin|date_short }} - {{ model.query.end|date_short }}
                     {% else %}
-                        {{ model.query.end|month_name|trans }} {{ model.query.end|date('Y') }}
+                        {{ model.query.end|month_name }} {{ model.query.end|date('Y') }}
                     {% endif %}
                 </td>
             </tr>
@@ -42,7 +43,7 @@
             </tr>
             {% if model.query.project is not empty and model.query.project.orderNumber is not empty %}
                 <tr>
-                    <th>{{ 'label.order_number'|trans }}</th>
+                    <th>{{ 'label.orderNumber'|trans }}</th>
                     <td contenteditable="true">
                         {{ model.query.project.orderNumber }}
                     </td>
@@ -52,7 +53,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row invoice-items">
     <div class="col-xs-12 table-responsive">
         <table class="table table-striped">
             <thead>
@@ -72,38 +73,46 @@
                 {% if model.query.user is empty %}
                     <td>{{ widgets.username(entry.user) }}</td>
                 {% endif %}
-                <td>{{ entry.activity.name }} / {{ entry.project.name }}</td>
-                <td>{{ entry.duration|duration }}</td>
+                <td contenteditable="true">
+                    {% if entry.description is not empty %}
+                        {{ entry.description|nl2br }}
+                    {% else %}
+                        {% if entry.activity is not null %}{{ entry.activity.name }} / {% endif %}{{ entry.project.name }}
+                    {% endif %}
+                </td>
+                <td class="text-nowrap">{{ entry.duration|duration(isDecimal) }}</td>
             </tr>
             {% endfor %}
             </tbody>
             <tfoot>
             <tr>
                 <th></th>
+                {% if model.query.user is empty %}
+                <th></th>
+                {% endif %}
                 <th>{{ 'invoice.total_working_time'|trans }}</th>
-                <th>{{ model.calculator.timeWorked|duration }}</th>
+                <th class="text-nowrap">{{ model.calculator.timeWorked|duration(isDecimal) }}</th>
             </tr>
             </tfoot>
         </table>
     </div>
 </div>
 
-<div class="row" style="padding: 60px 0">
+<div class="row">
     <div class="col-xs-12">
         {% if model.template.paymentTerms is not empty %}
             <p class="lead">{{ 'label.payment_terms'|trans }}</p>
 
-            <p class="text-muted well well-sm no-shadow" contenteditable="true">
+            <p class="text-muted well well-sm no-shadow" contenteditable="true" style="margin-bottom: 100px">
                 {{ model.template.paymentTerms|trim|nl2br }}
             </p>
         {% endif %}
-
 
         <div class="table-responsive">
             <table class="table">
                 <tbody>
                 <tr>
-                    <th style="width:50%;padding-bottom: 60px">{{ 'invoice.signature_user'|trans }}</th>
+                    <th style="padding-bottom: 60px">{{ 'invoice.signature_user'|trans }}</th>
                 </tr>
                 <tr>
                     <th>{{ 'invoice.signature_customer'|trans }}</th>

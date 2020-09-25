@@ -10,18 +10,24 @@
 namespace App\Tests\Invoice\Renderer;
 
 use App\Invoice\Renderer\TwigRenderer;
+use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
 /**
+ * @covers \App\Invoice\Renderer\AbstractTwigRenderer
  * @covers \App\Invoice\Renderer\TwigRenderer
+ * @group integration
  */
-class TwigRendererTest extends AbstractRendererTest
+class TwigRendererTest extends KernelTestCase
 {
+    use RendererTestTrait;
+
     public function testSupports()
     {
         $loader = new FilesystemLoader();
-        $env = new \Twig_Environment($loader);
+        $env = new Environment($loader);
         $sut = new TwigRenderer($env);
 
         $this->assertTrue($sut->supports($this->getInvoiceDocument('default.html.twig')));
@@ -37,7 +43,7 @@ class TwigRendererTest extends AbstractRendererTest
     public function testRender()
     {
         $kernel = self::bootKernel();
-        /** @var \Twig_Environment $twig */
+        /** @var Environment $twig */
         $twig = $kernel->getContainer()->get('twig');
         $stack = $kernel->getContainer()->get('request_stack');
         $request = new Request();
@@ -51,15 +57,24 @@ class TwigRendererTest extends AbstractRendererTest
         $sut = new TwigRenderer($twig);
 
         $model = $this->getInvoiceModel();
+        $model->getTemplate()->setLanguage('de');
 
         $document = $this->getInvoiceDocument('timesheet.html.twig');
         $response = $sut->render($document, $model);
 
         $content = $response->getContent();
 
-        $this->assertContains('<h2 class="page-header">
-           <span contenteditable="true">a test invoice template title</span>
+        $filename = $model->getInvoiceNumber() . '-customer_with_special_name';
+        $this->assertStringContainsString('<title>' . $filename . '</title>', $content);
+        $this->assertStringContainsString('<h2 class="page-header">
+           <span contenteditable="true">a very *long* test invoice / template title with [ßpecial] chäracter</span>
         </h2>', $content);
-        $this->assertEquals(5, substr_count($content, '<td>activity description / project name</td>'));
+        $this->assertEquals(2, substr_count($content, 'activity description'));
+        $this->assertStringContainsString(nl2br("foo\n" .
+    "foo\r\n" .
+    'foo' . PHP_EOL .
+    "bar\n" .
+    "bar\r\n" .
+    'Hello'), $content);
     }
 }

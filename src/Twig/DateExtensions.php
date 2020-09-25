@@ -9,36 +9,46 @@
 
 namespace App\Twig;
 
+use App\Configuration\LanguageFormattings;
+use App\Constants;
+use App\Utils\LocaleFormats;
+use App\Utils\LocaleFormatter;
 use DateTime;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
+use Twig\TwigFunction;
+use Twig\TwigTest;
 
 /**
  * Date specific twig extensions
  */
-class DateExtensions extends \Twig_Extension
+class DateExtensions extends AbstractExtension
 {
-    private const FALLBACK_SHORT = 'Y-m-d';
-
     /**
-     * @var array
+     * @var LocaleFormats|null
      */
-    protected $dateSettings;
-
+    protected $localeFormats = null;
     /**
-     * @var RequestStack
+     * @var LocaleFormatter
      */
-    protected $requestStack;
-
+    private $formatter;
     /**
-     * DateExtensions constructor.
-     * @param RequestStack $requestStack
-     * @param array $dateSettings
+     * @var LanguageFormattings
      */
-    public function __construct(RequestStack $requestStack, array $dateSettings)
+    private $formats;
+
+    public function __construct(RequestStack $requestStack, LanguageFormattings $formats)
     {
-        $this->requestStack = $requestStack;
-        $this->dateSettings = $dateSettings;
+        $locale = Constants::DEFAULT_LOCALE;
+
+        // request is null in a console command
+        if (null !== $requestStack->getMasterRequest()) {
+            $locale = $requestStack->getMasterRequest()->getLocale();
+        }
+
+        $this->formats = $formats;
+        $this->setLocale($locale);
     }
 
     /**
@@ -48,41 +58,123 @@ class DateExtensions extends \Twig_Extension
     {
         return [
             new TwigFilter('month_name', [$this, 'monthName']),
+            new TwigFilter('day_name', [$this, 'dayName']),
             new TwigFilter('date_short', [$this, 'dateShort']),
+            new TwigFilter('date_time', [$this, 'dateTime']),
+            new TwigFilter('date_full', [$this, 'dateTimeFull']),
+            new TwigFilter('date_format', [$this, 'dateFormat']),
+            new TwigFilter('time', [$this, 'time']),
+            new TwigFilter('hour24', [$this, 'hour24']),
+        ];
+    }
+
+    public function getTests()
+    {
+        return [
+            new TwigTest('weekend', function ($dateTime) {
+                if (!$dateTime instanceof \DateTime) {
+                    return false;
+                }
+                $day = (int) $dateTime->format('w');
+
+                return ($day === 0 || $day === 6);
+            }),
         ];
     }
 
     /**
-     * @return string
+     * {@inheritdoc}
      */
-    protected function getLocale()
+    public function getFunctions()
     {
-        return $this->requestStack->getCurrentRequest()->getLocale();
+        return [
+            new TwigFunction('get_format_duration', [$this, 'getDurationFormat']),
+        ];
     }
 
     /**
-     * @param array $context
-     * @param DateTime $date
-     * @return string
+     * Allows to switch the locale used for all twig filter and functions.
+     *
+     * @param string $locale
      */
-    public function dateShort(DateTime $date)
+    public function setLocale(string $locale)
     {
-        $locale = $this->getLocale();
-        $format = self::FALLBACK_SHORT;
-
-        if (isset($this->dateSettings[$locale]['date_short'])) {
-            $format = $this->dateSettings[$locale]['date_short'];
-        }
-
-        return date_format($date, $format);
+        $this->formatter = new LocaleFormatter($this->formats, $locale);
+        $this->localeFormats = new LocaleFormats($this->formats, $locale);
     }
 
     /**
-     * @param \DateTime $date
+     * @param DateTime|string $date
      * @return string
      */
-    public function monthName(\DateTime $date)
+    public function dateShort($date)
     {
-        return 'month.' . $date->format('n');
+        return $this->formatter->dateShort($date);
+    }
+
+    /**
+     * @param DateTime|string $date
+     * @return string
+     */
+    public function dateTime($date)
+    {
+        return $this->formatter->dateTime($date);
+    }
+
+    /**
+     * @param DateTime|string $date
+     * @return bool|false|string
+     */
+    public function dateTimeFull($date)
+    {
+        return $this->formatter->dateTimeFull($date);
+    }
+
+    /**
+     * @param DateTime|string $date
+     * @param string $format
+     * @return false|string
+     * @throws \Exception
+     */
+    public function dateFormat($date, string $format)
+    {
+        return $this->formatter->dateFormat($date, $format);
+    }
+
+    /**
+     * @param DateTime|string $date
+     * @return string
+     */
+    public function time($date)
+    {
+        return $this->formatter->time($date);
+    }
+
+    public function monthName(\DateTime $dateTime, bool $withYear = false): string
+    {
+        return $this->formatter->monthName($dateTime, $withYear);
+    }
+
+    public function dayName(\DateTime $dateTime, bool $short = false): string
+    {
+        return $this->formatter->dayName($dateTime, $short);
+    }
+
+    /**
+     * @param mixed $twentyFour
+     * @param mixed $twelveHour
+     * @return mixed
+     */
+    public function hour24($twentyFour, $twelveHour)
+    {
+        return $this->formatter->hour24($twentyFour, $twelveHour);
+    }
+
+    /**
+     * @return string
+     */
+    public function getDurationFormat()
+    {
+        return $this->localeFormats->getDurationFormat();
     }
 }

@@ -12,9 +12,10 @@ namespace App\Tests\Controller;
 use App\DataFixtures\UserFixtures;
 use App\Entity\User;
 use App\Tests\KernelTestTrait;
-use Symfony\Bundle\FrameworkBundle\Client;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpKernel\HttpKernelBrowser;
 
 /**
  * ControllerBaseTest adds some useful functions for writing integration tests.
@@ -25,11 +26,7 @@ abstract class ControllerBaseTest extends WebTestCase
 
     public const DEFAULT_LANGUAGE = 'en';
 
-    /**
-     * @param string $role
-     * @return Client
-     */
-    protected function getClientForAuthenticatedUser(string $role = User::ROLE_USER)
+    protected function getClientForAuthenticatedUser(string $role = User::ROLE_USER): HttpKernelBrowser
     {
         switch ($role) {
             case User::ROLE_SUPER_ADMIN:
@@ -78,36 +75,37 @@ abstract class ControllerBaseTest extends WebTestCase
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
      * @param string $url
      * @param string $method
      * @param array $parameters
      * @param string $content
      * @return \Symfony\Component\DomCrawler\Crawler
      */
-    protected function request(Client $client, string $url, $method = 'GET', array $parameters = [], string $content = null)
+    protected function request(HttpKernelBrowser $client, string $url, $method = 'GET', array $parameters = [], string $content = null)
     {
         return $client->request($method, $this->createUrl($url), $parameters, [], [], $content);
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
      * @param string $url
      * @param string $method
      */
-    protected function assertRequestIsSecured(Client $client, string $url, $method = 'GET')
+    protected function assertRequestIsSecured(HttpKernelBrowser $client, string $url, ?string $method = 'GET')
     {
         $this->request($client, $url, $method);
 
-        /* @var RedirectResponse $response */
+        /** @var RedirectResponse $response */
         $response = $client->getResponse();
+        self::assertInstanceOf(RedirectResponse::class, $response);
 
-        $this->assertTrue(
+        self::assertTrue(
             $response->isRedirect(),
             sprintf('The secure URL %s is not protected.', $url)
         );
 
-        $this->assertStringEndsWith(
+        self::assertStringEndsWith(
             '/login',
             $response->getTargetUrl(),
             sprintf('The secure URL %s does not redirect to the login form.', $url)
@@ -133,49 +131,133 @@ abstract class ControllerBaseTest extends WebTestCase
     {
         $client = $this->getClientForAuthenticatedUser($role);
         $client->request($method, $this->createUrl($url));
-        $this->assertFalse(
+        self::assertFalse(
             $client->getResponse()->isSuccessful(),
             sprintf('The secure URL %s is not protected for role %s', $url, $role)
         );
-        $this->assertContains('Symfony\Component\Security\Core\Exception\AccessDeniedException', $client->getResponse()->getContent());
+        $this->assertAccessDenied($client);
     }
 
-    /**
-     * @param Client $client
-     * @param $url
-     * @param string $method
-     * @param array $parameters
-     */
-    protected function assertAccessIsGranted(Client $client, $url, $method = 'GET', array $parameters = [])
+    protected function assertAccessDenied(HttpKernelBrowser $client)
+    {
+        self::assertFalse(
+            $client->getResponse()->isSuccessful(),
+            'Access is not denied for URL: ' . $client->getRequest()->getUri()
+        );
+        self::assertStringContainsString(
+            'Symfony\Component\Security\Core\Exception\AccessDeniedException',
+            $client->getResponse()->getContent(),
+            'Could not find AccessDeniedException in response'
+        );
+    }
+
+    protected function assertAccessIsGranted(HttpKernelBrowser $client, string $url, string $method = 'GET', array $parameters = [])
     {
         $this->request($client, $url, $method, $parameters);
-        $this->assertTrue($client->getResponse()->isSuccessful());
+        self::assertTrue($client->getResponse()->isSuccessful());
+    }
+
+    protected function assertRouteNotFound(HttpKernelBrowser $client)
+    {
+        self::assertFalse($client->getResponse()->isSuccessful());
+        self::assertEquals(404, $client->getResponse()->getStatusCode());
+    }
+
+    protected function assertMainContentClass(HttpKernelBrowser $client, string $classname)
+    {
+        self::assertStringContainsString('<section class="content ' . $classname . '">', $client->getResponse()->getContent());
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
      */
-    protected function assertRouteNotFound(Client $client)
+    protected function assertHasDataTable(HttpKernelBrowser $client)
     {
-        $this->assertFalse($client->getResponse()->isSuccessful());
-        $this->assertEquals(404, $client->getResponse()->getStatusCode());
+        self::assertStringContainsString('<table class="table table-striped table-hover dataTable" role="grid" data-reload-event="', $client->getResponse()->getContent());
     }
 
     /**
-     * @param Client $client
-     * @param string $classname
+     * @param HttpKernelBrowser $client
      */
-    protected function assertMainContentClass(Client $client, $classname)
+    protected static function assertHasProgressbar(HttpKernelBrowser $client)
     {
-        $this->assertContains('<section class="content ' . $classname . '">', $client->getResponse()->getContent());
+        $content = $client->getResponse()->getContent();
+        self::assertStringContainsString('<div class="progress-bar progress-bar-', $content);
+        self::assertStringContainsString('" role="progressbar" aria-valuenow="', $content);
+        self::assertStringContainsString('" aria-valuemin="0" aria-valuemax="100" style="width: ', $content);
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
+     * @param string $id
+     * @param int $count
      */
-    protected function assertHasDataTable(Client $client)
+    protected function assertDataTableRowCount(HttpKernelBrowser $client, string $id, int $count)
     {
-        $this->assertContains('<table class="table table-striped table-hover dataTable" role="grid">', $client->getResponse()->getContent());
+        $node = $client->getCrawler()->filter('section.content div#' . $id . ' table.table-striped tbody tr:not(.summary)');
+        self::assertEquals($count, $node->count());
+    }
+
+    /**
+     * @param HttpKernelBrowser $client
+     * @param array $buttons
+     */
+    protected function assertPageActions(HttpKernelBrowser $client, array $buttons)
+    {
+        $node = $client->getCrawler()->filter('section.content-header div.breadcrumb div.box-tools div.btn-group a');
+
+        /** @var \DOMElement $element */
+        foreach ($node->getIterator() as $element) {
+            $expectedClass = str_replace('btn btn-default btn-', '', $element->getAttribute('class'));
+            self::assertArrayHasKey($expectedClass, $buttons);
+            $expectedUrl = $buttons[$expectedClass];
+            self::assertEquals($expectedUrl, $element->getAttribute('href'));
+        }
+
+        self::assertEquals(\count($buttons), $node->count(), 'Invalid amount of page actions');
+    }
+
+    /**
+     * @param HttpKernelBrowser $client the client to use
+     * @param string $url the URL of the page displaying the initial form to submit
+     * @param string $formSelector a selector to find the form to test
+     * @param array $formData values to fill in the form
+     * @param array $fieldNames array of form-fields that should fail
+     * @param bool $disableValidation whether the form should validate before submitting or not
+     */
+    protected function assertHasValidationError(HttpKernelBrowser $client, $url, $formSelector, array $formData, array $fieldNames, $disableValidation = true)
+    {
+        $crawler = $client->request('GET', $this->createUrl($url));
+        $form = $crawler->filter($formSelector)->form();
+        if ($disableValidation) {
+            $form->disableValidation();
+        }
+        $result = $client->submit($form, $formData);
+
+        $submittedForm = $result->filter($formSelector);
+        $validationErrors = $submittedForm->filter('li.text-danger');
+
+        self::assertEquals(
+            \count($fieldNames),
+            \count($validationErrors),
+            sprintf('Expected %s validation errors, found %s', \count($fieldNames), \count($validationErrors))
+        );
+
+        foreach ($fieldNames as $name) {
+            $field = $submittedForm->filter($name);
+            self::assertNotNull($field, 'Could not find form field: ' . $name);
+            $list = $field->nextAll();
+            self::assertNotNull($list, 'Form field has no validation message: ' . $name);
+
+            $validation = $list->filter('li.text-danger');
+            if (\count($validation) < 1) {
+                // decorated form fields with icon have a different html structure, see kimai-theme.html.twig
+                /** @var \DOMElement $listMsg */
+                $listMsg = $field->parents()->getNode(1);
+                $classes = $listMsg->getAttribute('class');
+                self::assertStringContainsString('has-error', $classes, 'Form field has no validation message: ' . $name);
+            }
+        }
     }
 
     /**
@@ -189,59 +271,86 @@ abstract class ControllerBaseTest extends WebTestCase
     protected function assertFormHasValidationError($role, $url, $formSelector, array $formData, array $fieldNames, $disableValidation = true)
     {
         $client = $this->getClientForAuthenticatedUser($role);
-        $crawler = $client->request('GET', $this->createUrl($url));
-        $form = $crawler->filter($formSelector)->form();
-        if ($disableValidation) {
-            $form->disableValidation();
-        }
-        $result = $client->submit($form, $formData);
-
-        $submittedForm = $result->filter($formSelector);
-        $validationErrors = $submittedForm->filter('li.text-danger');
-
-        $this->assertEquals(
-            count($fieldNames),
-            count($validationErrors),
-            sprintf('Expected %s validation errors, found %s', count($fieldNames), count($validationErrors))
-        );
-
-        foreach ($fieldNames as $name) {
-            $field = $submittedForm->filter($name);
-            $this->assertNotNull($field, 'Could not find form field: ' . $name);
-            $list = $field->nextAll();
-            $this->assertNotNull($list, 'Form field has no validation message: ' . $name);
-
-            $validation = $list->filter('li.text-danger');
-            if (count($validation) < 1) {
-                // decorated form fields with icon have a different html structure, see kimai-theme.html.twig
-                $classes = $field->parents()->getNode(1)->getAttribute('class');
-                $this->assertContains('has-feedback', $classes, 'Form field has no validation message: ' . $name);
-                $this->assertContains('has-error', $classes, 'Form field has no validation message: ' . $name);
-            }
-        }
+        $this->assertHasValidationError($client, $url, $formSelector, $formData, $fieldNames, $disableValidation);
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
      */
-    protected function assertHasFlashSuccess(Client $client)
+    protected function assertHasNoEntriesWithFilter(HttpKernelBrowser $client)
+    {
+        $this->assertCalloutWidgetWithMessage($client, 'No entries were found based on your selected filters.');
+    }
+
+    /**
+     * @param HttpKernelBrowser $client
+     * @param string $message
+     */
+    protected function assertCalloutWidgetWithMessage(HttpKernelBrowser $client, string $message)
+    {
+        $node = $client->getCrawler()->filter('div.callout.callout-warning.lead');
+        self::assertStringContainsString($message, $node->text(null, true));
+    }
+
+    protected function assertHasFlashDeleteSuccess(HttpKernelBrowser $client)
+    {
+        $this->assertHasFlashSuccess($client, 'Entry was deleted');
+    }
+
+    protected function assertHasFlashSaveSuccess(HttpKernelBrowser $client)
+    {
+        $this->assertHasFlashSuccess($client, 'Saved changes');
+    }
+
+    /**
+     * @param HttpKernelBrowser $client
+     * @param string|null $message
+     */
+    protected function assertHasFlashSuccess(HttpKernelBrowser $client, string $message = null)
     {
         $node = $client->getCrawler()->filter('div.alert.alert-success.alert-dismissible');
-        $this->assertNotEmpty($node->text());
+        self::assertGreaterThan(0, $node->count(), 'Could not find flash success message');
+        if (null !== $message) {
+            self::assertStringContainsString($message, $node->text(null, true));
+        }
     }
 
     /**
-     * @param Client $client
+     * @param HttpKernelBrowser $client
+     * @param string|null $message
+     */
+    protected function assertHasFlashError(HttpKernelBrowser $client, string $message = null)
+    {
+        $node = $client->getCrawler()->filter('div.alert.alert-error.alert-dismissible');
+        self::assertGreaterThan(0, $node->count(), 'Could not find flash error message');
+        if (null !== $message) {
+            self::assertStringContainsString($message, $node->text(null, true));
+        }
+    }
+
+    /**
+     * @param HttpKernelBrowser $client
      * @param string $url
      */
-    protected function assertIsRedirect(Client $client, $url = null)
+    protected function assertIsRedirect(HttpKernelBrowser $client, $url = null)
     {
-        $this->assertTrue($client->getResponse()->isRedirect());
+        self::assertTrue($client->getResponse()->isRedirect(), 'Response is not a redirect');
         if (null === $url) {
             return;
         }
 
-        $this->assertTrue($client->getResponse()->headers->has('Location'));
-        $this->assertStringEndsWith($url, $client->getResponse()->headers->get('Location'));
+        self::assertTrue($client->getResponse()->headers->has('Location'), 'Could not find "Location" header');
+        self::assertStringEndsWith($url, $client->getResponse()->headers->get('Location'), 'Redirect URL does not match');
+    }
+
+    protected function assertExcelExportResponse(HttpKernelBrowser $client, string $prefix)
+    {
+        /** @var BinaryFileResponse $response */
+        $response = $client->getResponse();
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+
+        self::assertEquals('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $response->headers->get('Content-Type'));
+        self::assertStringContainsString('attachment; filename=' . $prefix, $response->headers->get('Content-Disposition'));
+        self::assertStringContainsString('.xlsx', $response->headers->get('Content-Disposition'));
     }
 }

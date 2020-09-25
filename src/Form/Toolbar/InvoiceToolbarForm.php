@@ -9,36 +9,27 @@
 
 namespace App\Form\Toolbar;
 
-use App\Form\Type\InvoiceTemplateType;
-use App\Repository\Query\InvoiceQuery;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * Defines the form used for filtering timesheet entries for invoices.
  */
-class InvoiceToolbarForm extends AbstractToolbarForm
+class InvoiceToolbarForm extends InvoiceToolbarSimpleForm
 {
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $this->addTemplateChoice($builder);
-        $this->addUserChoice($builder);
-        $this->addStartDateChoice($builder);
-        $this->addEndDateChoice($builder);
-        $this->addCustomerChoice($builder);
-        $this->addProjectChoice($builder);
-        $this->addActivityChoice($builder);
-    }
-
-    protected function addTemplateChoice(FormBuilderInterface $builder)
-    {
-        $builder->add('template', InvoiceTemplateType::class, [
-            'required' => false,
-            'placeholder' => null,
-        ]);
+        parent::buildForm($builder, $options);
+        $this->addSearchTermInputField($builder);
+        if ($options['include_user']) {
+            $this->addUsersChoice($builder);
+        }
+        $this->addActivityMultiChoice($builder, $options, true);
+        $this->addTagInputField($builder);
+        $this->addExportStateChoice($builder);
     }
 
     /**
@@ -46,9 +37,7 @@ class InvoiceToolbarForm extends AbstractToolbarForm
      */
     public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults([
-            'data_class' => InvoiceQuery::class,
-            'csrf_protection' => false,
-        ]);
+        parent::configureOptions($resolver);
+        $resolver->setDefault('include_user', true);
     }
 }

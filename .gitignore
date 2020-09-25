@@ -1,21 +1,39 @@
 # ========== KIMAI ==========
-# IDE
+# some hosters require a htaccess to change the PHP version
+.htaccess
+
 .idea/
+.DS_Store
+
+# for symfony local webserver
+php.ini
 
 /bin/*
 !bin/console
 /config/packages/local.yaml
+/config/packages/*-local.yaml
+/config/packages/*/local.yaml
+/config/packages/*/*-local.yaml
+/config/bundles-local.php
+
+public/avatars/*.png
 
 templates/invoice/renderer/.~lock*
 
-/var/data/*.sqlite
-/var/data/*.sqlite-journal
+/var/data/*
+!/var/data/.gitkeep
 !/var/data/kimai_test.sqlite
 /var/coverage/
 /var/cache/*
 !var/cache/.gitkeep
 
 /var/invoices/*
+/var/export/*
+
+/var/packages/*
+!var/packages/.gitkeep
+/var/plugins/*
+!var/plugins/.gitkeep
 
 /var/log/*
 !var/log/.gitkeep
@@ -30,10 +48,6 @@ templates/invoice/renderer/.~lock*
 /vendor/
 ###< symfony/framework-bundle ###
 
-###> symfony/web-server-bundle ###
-.web-server-pid
-###< symfony/web-server-bundle ###
-
 ###> phpunit/phpunit ###
 /phpunit.xml
 /.phpunit.result.cache
@@ -43,13 +57,15 @@ templates/invoice/renderer/.~lock*
 .php_cs
 .php_cs.cache
 ###< friendsofphp/php-cs-fixer ###
+
 ###> symfony/phpunit-bridge ###
 .phpunit
 /phpunit.xml
 ###< symfony/phpunit-bridge ###
 
-###> symfony/webpack-encore-pack ###
+###> symfony/webpack-encore-bundle ###
 /node_modules/
 npm-debug.log
 yarn-error.log
-###< symfony/webpack-encore-pack ###
+###< symfony/webpack-encore-bundle ###
+/nbproject/*

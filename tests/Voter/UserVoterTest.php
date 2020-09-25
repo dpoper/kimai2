@@ -72,6 +72,7 @@ class UserVoterTest extends AbstractVoterTest
             yield [$user, $user4, 'edit', $result];
             yield [$user, $user4, 'delete', $result];
             yield [$user, $user4, 'hourly-rate', $result];
+            yield [$user, $user4, 'hourly-rate', $result];
         }
 
         $result = VoterInterface::ACCESS_ABSTAIN;
@@ -83,5 +84,31 @@ class UserVoterTest extends AbstractVoterTest
             yield [$user, null, 'edit', $result];
             yield [$user, null, 'delete', $result];
         }
+    }
+
+    /**
+     * @dataProvider getTestDataForAuthType
+     */
+    public function testPasswordIsDeniedForNonInternalUser(string $authType, int $result)
+    {
+        $user = new User();
+        $user->setUsername('admin');
+        $user->addRole('ROLE_SUPER_ADMIN');
+
+        $subject = new User();
+        $subject->setUsername('foo');
+        $subject->addRole('ROLE_USER');
+        $subject->setAuth($authType);
+
+        $this->testVote($user, $subject, 'password', $result);
+    }
+
+    public function getTestDataForAuthType()
+    {
+        return [
+          [User::AUTH_LDAP, VoterInterface::ACCESS_DENIED],
+          [User::AUTH_INTERNAL, VoterInterface::ACCESS_GRANTED],
+          [User::AUTH_SAML, VoterInterface::ACCESS_DENIED],
+        ];
     }
 }

@@ -10,6 +10,7 @@
 namespace App\Form\Toolbar;
 
 use App\Repository\Query\ActivityQuery;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -23,11 +24,28 @@ class ActivityToolbarForm extends AbstractToolbarForm
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $this->addPageSizeChoice($builder);
+        $newOptions = [];
+        if ($options['ignore_date'] === true) {
+            $newOptions['ignore_date'] = true;
+        }
+
+        $this->addSearchTermInputField($builder);
+        $this->addCustomerMultiChoice($builder, $newOptions, true);
+        $this->addProjectMultiChoice($builder, $newOptions, true, false);
+        $builder->add('globalsOnly', ChoiceType::class, [
+            'choices' => [
+                'yes' => 1,
+                'no' => 0,
+            ],
+            'placeholder' => null,
+            'required' => false,
+            'label' => 'label.globalsOnly',
+        ]);
         $this->addVisibilityChoice($builder);
-        $this->addCustomerChoice($builder);
-        $this->addProjectChoice($builder);
+        $this->addPageSizeChoice($builder);
         $this->addHiddenPagination($builder);
+        $this->addHiddenOrder($builder);
+        $this->addHiddenOrderBy($builder, ActivityQuery::ACTIVITY_ORDER_ALLOWED);
     }
 
     /**
@@ -38,6 +56,7 @@ class ActivityToolbarForm extends AbstractToolbarForm
         $resolver->setDefaults([
             'data_class' => ActivityQuery::class,
             'csrf_protection' => false,
+            'ignore_date' => true,
         ]);
     }
 }

@@ -17,12 +17,8 @@ class AclDecisionManager
     /**
      * @var AccessDecisionManagerInterface
      */
-    protected $decisionManager;
+    private $decisionManager;
 
-    /**
-     * AbstractVoter constructor.
-     * @param AccessDecisionManagerInterface $decisionManager
-     */
     public function __construct(AccessDecisionManagerInterface $decisionManager)
     {
         $this->decisionManager = $decisionManager;
@@ -35,24 +31,6 @@ class AclDecisionManager
     public function isFullyAuthenticated(TokenInterface $token)
     {
         if ($this->decisionManager->decide($token, ['IS_AUTHENTICATED_FULLY'])) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * @param TokenInterface $token
-     * @param string|array $roles
-     * @return bool
-     */
-    public function hasRole(TokenInterface $token, $roles)
-    {
-        if (!is_array($roles)) {
-            $roles = [$roles];
-        }
-
-        if ($this->decisionManager->decide($token, $roles)) {
             return true;
         }
 

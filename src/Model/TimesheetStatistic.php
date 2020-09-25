@@ -25,15 +25,15 @@ class TimesheetStatistic
      */
     protected $durationTotal = 0;
     /**
-     * @var int
+     * @var float
      */
     protected $amountThisMonth = 0;
     /**
-     * @var int
+     * @var float
      */
     protected $amountTotal = 0;
     /**
-     * @var \DateTime
+     * @var \DateTime|null
      */
     protected $firstEntry;
     /**
@@ -41,10 +41,7 @@ class TimesheetStatistic
      */
     protected $recordsTotal = 0;
 
-    /**
-     * @return int
-     */
-    public function getDurationThisMonth()
+    public function getDurationThisMonth(): int
     {
         return $this->durationThisMonth;
     }
@@ -58,25 +55,26 @@ class TimesheetStatistic
     }
 
     /**
-     * @return int
+     * This is actually the rate, wrong wording...
+     *
+     * @return float
      */
-    public function getAmountTotal()
+    public function getAmountTotal(): float
     {
         return $this->amountTotal;
     }
 
     /**
-     * @param int $amountTotal
+     * This is actually the rate, wrong wording...
+     *
+     * @param float|int $amountTotal
      */
     public function setAmountTotal($amountTotal)
     {
-        $this->amountTotal = (int) $amountTotal;
+        $this->amountTotal = (float) $amountTotal;
     }
 
-    /**
-     * @return int
-     */
-    public function getDurationTotal()
+    public function getDurationTotal(): int
     {
         return $this->durationTotal;
     }
@@ -90,25 +88,26 @@ class TimesheetStatistic
     }
 
     /**
-     * @return int
+     * This is actually the rate, wrong wording...
+     *
+     * @return float
      */
-    public function getAmountThisMonth()
+    public function getAmountThisMonth(): float
     {
         return $this->amountThisMonth;
     }
 
     /**
-     * @param int $amountThisMonth
+     * This is actually the rate, wrong wording...
+     *
+     * @param float|int $amountThisMonth
      */
     public function setAmountThisMonth($amountThisMonth)
     {
-        $this->amountThisMonth = (int) $amountThisMonth;
+        $this->amountThisMonth = (float) $amountThisMonth;
     }
 
-    /**
-     * @return DateTime
-     */
-    public function getFirstEntry()
+    public function getFirstEntry(): ?\DateTime
     {
         return $this->firstEntry;
     }
